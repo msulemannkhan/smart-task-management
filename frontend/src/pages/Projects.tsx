@@ -199,7 +199,14 @@ export function Projects() {
 
   return (
     <>
-      <Box h="full" p={8}>
+      <Box
+        h="full"
+        p={8}
+        bg="white"
+        _dark={{ bg: "black", color: "gray.100" }}
+        color="gray.800"
+        boxShadow={{ base: "sm", _dark: "md" }}
+      >
         <VStack align="stretch" spacing={8}>
           {/* Header */}
           <Box>

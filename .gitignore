@@ -3,7 +3,6 @@
 .env.local
 .env.production
 .env.development
-.env.ports
 .env.backup
 .env.ports.backup
 

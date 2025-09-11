@@ -78,8 +78,9 @@ export function ProjectDetail() {
         // Fetch member count
         try {
           const members = await ProjectMemberService.list(projectId);
-          setMemberCount(members.total);
-        } catch {
+          setMemberCount(members.total || 0);
+        } catch (memberError) {
+          console.warn('Failed to fetch project members:', memberError);
           setMemberCount(0);
         }
 

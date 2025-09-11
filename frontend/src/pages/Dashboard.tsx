@@ -10,13 +10,27 @@ import {
   Spinner,
   Alert,
   AlertIcon,
-  Progress,
   Badge,
   Icon,
   Flex,
   Button,
   useColorModeValue,
   useToast,
+  Avatar,
+  AvatarGroup,
+  Divider,
+  IconButton,
+  Skeleton,
+  SkeletonText,
+  SkeletonCircle,
+  Container,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  StatArrow,
+  Progress,
+  Tooltip,
 } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { TaskService } from "../services/taskService";
@@ -24,7 +38,13 @@ import { ProjectService } from "../services/projectService";
 import { ActivityService, type Activity } from "../services/activityService";
 import { TaskStatus, TaskPriority } from "../types/task";
 import type { Task } from "../types/task";
-import { formatDistanceToNow } from "date-fns";
+import {
+  formatDistanceToNow,
+  format,
+  isToday,
+  isYesterday,
+  parseISO,
+} from "date-fns";
 import { useNavigate } from "react-router-dom";
 import {
   FiCheckCircle,
@@ -45,174 +65,168 @@ import {
   FiCalendar,
   FiMessageCircle,
   FiTrash,
+  FiRefreshCw,
+  FiTarget,
+  FiZap,
+  FiAward,
+  FiBarChart2,
+  FiPieChart,
+  FiTrendingDown,
+  FiBriefcase,
+  FiUsers,
+  FiFileText,
+  FiArrowUp,
+  FiArrowDown,
 } from "react-icons/fi";
+import { motion } from "framer-motion";
+import { StatsCard } from "../components/dashboard/StatsCard";
+import {
+  TaskStatusPieChart,
+  TaskCompletionTrend,
+  PriorityBarChart,
+  TeamPerformanceRadar,
+} from "../components/dashboard/TaskCharts";
+
+const MotionBox = motion(Box);
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      duration: 0.5,
+    },
+  },
+};
 
 export function Dashboard() {
   const navigate = useNavigate();
   const toast = useToast();
-  const cardBg = useColorModeValue("white", "dark.bg.tertiary");
+
+  // Theme colors
+  const bgColor = useColorModeValue("gray.50", "gray.900");
+  const cardBg = useColorModeValue("white", "gray.800");
+  const textColor = useColorModeValue("gray.900", "gray.100");
   const textMuted = useColorModeValue("gray.600", "gray.400");
-  const borderColor = useColorModeValue("gray.200", "gray.700");
-  const progressBg = useColorModeValue("gray.100", "gray.700");
+  const borderColor = useColorModeValue("gray.50", "gray.700");
+  const hoverBg = useColorModeValue("gray.50", "gray.700");
 
-  // Show stats across all projects for logged-in user
-  const PROJECT_ID: string | undefined = undefined;
-
-  // Color schemes for different priorities and statuses
-  const priorityColors = {
-    [TaskPriority.CRITICAL]: "red",
-    [TaskPriority.URGENT]: "orange",
-    [TaskPriority.HIGH]: "yellow",
-    [TaskPriority.MEDIUM]: "blue",
-    [TaskPriority.LOW]: "gray",
-  };
-
-  const statusColors = {
-    [TaskStatus.DONE]: "green",
-    [TaskStatus.IN_PROGRESS]: "blue",
-    [TaskStatus.TODO]: "gray",
-    [TaskStatus.BLOCKED]: "red",
-    [TaskStatus.IN_REVIEW]: "purple",
-    [TaskStatus.BACKLOG]: "gray",
-    [TaskStatus.CANCELLED]: "red",
-  };
-
-  // Fetch stats using React Query
+  // Fetch all data needed for dashboard
   const {
     data: stats,
     isLoading: statsLoading,
     error: statsError,
+    refetch: refetchStats,
   } = useQuery({
-    queryKey: ["taskStats", PROJECT_ID],
-    queryFn: () => TaskService.getTaskStats(PROJECT_ID),
+    queryKey: ["taskStats"],
+    queryFn: () => TaskService.getTaskStats(undefined),
     refetchInterval: 30000,
     staleTime: 10000,
   });
 
-  // Fetch recent tasks for activity feed
   const {
-    data: tasksResponse,
+    data: allTasksResponse,
     isLoading: tasksLoading,
-    error: tasksError,
+    refetch: refetchTasks,
   } = useQuery({
-    queryKey: ["recentTasks", 20],
-    queryFn: () => TaskService.getAllTasks({ per_page: 20 }),
+    queryKey: ["dashboardTasks"],
+    queryFn: () => TaskService.getAllTasks({ per_page: 200 }),
     refetchInterval: 30000,
     staleTime: 10000,
   });
 
-  // Fetch all tasks for analysis
-  const { data: allTasksResponse, isLoading: allTasksLoading } = useQuery({
-    queryKey: ["allTasks"],
-    queryFn: () => TaskService.getAllTasks({ per_page: 100 }),
-    refetchInterval: 30000,
-    staleTime: 10000,
-  });
-
-  // Fetch projects for breakdown
   const { data: projectsResponse, isLoading: projectsLoading } = useQuery({
-    queryKey: ["projects"],
+    queryKey: ["dashboardProjects"],
     queryFn: () => ProjectService.list(),
-    refetchInterval: 30000,
-    staleTime: 10000,
+    refetchInterval: 60000,
+    staleTime: 30000,
   });
 
-  // Fetch user activities
   const {
     data: activitiesResponse,
     isLoading: activitiesLoading,
     refetch: refetchActivities,
   } = useQuery({
-    queryKey: ["userActivities"],
-    queryFn: () => ActivityService.getRecentActivities(undefined, 50),
+    queryKey: ["dashboardActivities"],
+    queryFn: () => ActivityService.getRecentActivities(undefined, 20),
     refetchInterval: 10000,
     staleTime: 5000,
   });
 
-  const recentTasks = tasksResponse?.tasks || [];
   const allTasks = allTasksResponse?.tasks || [];
-  const userActivities = activitiesResponse?.activities || [];
-  // Remove duplicates from projects
   const projects = (projectsResponse?.projects || []).filter(
     (project, index, self) =>
       index === self.findIndex((p) => p.id === project.id)
   );
-  const isLoading =
-    statsLoading || tasksLoading || allTasksLoading || projectsLoading;
-  const error = statsError || tasksError;
+  const activities = activitiesResponse?.activities || [];
+  const isLoading = statsLoading || tasksLoading || projectsLoading;
 
-  // Calculate priority breakdown
-  const priorityBreakdown = allTasks.reduce((acc, task) => {
-    const priority = task.priority || TaskPriority.MEDIUM;
-    acc[priority] = (acc[priority] || 0) + 1;
-    return acc;
-  }, {} as Record<TaskPriority, number>);
+  // Calculate metrics
+  const totalTasks = allTasks.length;
+  const completedTasks = allTasks.filter(
+    (t) => t.status === TaskStatus.DONE
+  ).length;
+  const inProgressTasks = allTasks.filter(
+    (t) => t.status === TaskStatus.IN_PROGRESS
+  ).length;
+  const overdueTasks = allTasks.filter(
+    (t) =>
+      t.due_date &&
+      new Date(t.due_date) < new Date() &&
+      t.status !== TaskStatus.DONE
+  ).length;
+  const blockedTasks = allTasks.filter(
+    (t) => t.status === TaskStatus.BLOCKED
+  ).length;
 
-  // Calculate status breakdown
-  const statusBreakdown = allTasks.reduce((acc, task) => {
-    const status = task.status || TaskStatus.TODO;
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<TaskStatus, number>);
+  // Calculate completion rate and trends
+  const completionRate =
+    totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const productivityScore =
+    totalTasks > 0
+      ? Math.round(((completedTasks + inProgressTasks) / totalTasks) * 100)
+      : 0;
 
-  if (isLoading) {
-    return (
-      <Box h="full" p={8}>
-        <VStack align="center" justify="center" h="full">
-          <Spinner size="lg" color="primary.500" thickness="3px" />
-          <Text color={textMuted} fontSize="sm">
-            Loading dashboard...
-          </Text>
-        </VStack>
-      </Box>
-    );
-  }
+  // Get tasks created today
+  const todayTasks = allTasks.filter((t) => {
+    const createdDate = parseISO(t.created_at);
+    return isToday(createdDate);
+  }).length;
 
-  if (error) {
-    return (
-      <Box h="full" p={8}>
-        <Alert status="error" borderRadius="lg">
-          <AlertIcon />
-          {error instanceof Error
-            ? error.message
-            : "Failed to fetch dashboard data"}
-        </Alert>
-      </Box>
-    );
-  }
+  // Get tasks completed this week
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 7);
+  const completedThisWeek = allTasks.filter(
+    (t) =>
+      t.status === TaskStatus.DONE &&
+      t.updated_at &&
+      new Date(t.updated_at) > weekStart
+  ).length;
 
-  const getTaskActivityIcon = (task: Task) => {
-    if (task.status === TaskStatus.DONE || task.completed) return <Icon as={FiCheckCircle} color="green.500" boxSize={3} />;
-    if (task.status === TaskStatus.IN_PROGRESS) return <Icon as={FiActivity} color="blue.500" boxSize={3} />;
-    if (task.status === TaskStatus.BLOCKED) return <Icon as={FiAlertCircle} color="red.500" boxSize={3} />;
-    return <Icon as={FiClock} color="gray.500" boxSize={3} />;
+  // Handle refresh
+  const handleRefresh = async () => {
+    await Promise.all([refetchStats(), refetchTasks(), refetchActivities()]);
+    toast({
+      title: "Dashboard refreshed",
+      status: "success",
+      duration: 2000,
+      position: "top-right",
+    });
   };
 
-  const getActivityText = (task: Task): string => {
-    switch (task.status) {
-      case TaskStatus.DONE:
-        return "Completed";
-      case TaskStatus.IN_PROGRESS:
-        return "Started";
-      case TaskStatus.IN_REVIEW:
-        return "In review";
-      case TaskStatus.BLOCKED:
-        return "Blocked";
-      case TaskStatus.TODO:
-        return "Created";
-      default:
-        return "Updated";
-    }
-  };
-  
-  // Sort tasks by updated_at for recent activity
-  const recentActivities = [...recentTasks].sort((a, b) => {
-    const dateA = new Date(a.updated_at || a.created_at).getTime();
-    const dateB = new Date(b.updated_at || b.created_at).getTime();
-    return dateB - dateA; // Most recent first
-  }).slice(0, 5);
-
-  // Handler for clearing activities
+  // Handle clear activities
   const handleClearActivities = async () => {
     try {
       await ActivityService.clearActivities();
@@ -231,7 +245,7 @@ export function Dashboard() {
     }
   };
 
-  // Get icon component based on activity type
+  // Get activity icon
   const getActivityIcon = (activity: Activity) => {
     const style = ActivityService.getActivityStyle(activity);
     const iconMap: Record<string, any> = {
@@ -250,450 +264,414 @@ export function Dashboard() {
       FiMessageCircle,
     };
     const IconComponent = iconMap[style.icon] || FiActivity;
-    return <Icon as={IconComponent} color={`${style.color}.500`} boxSize={3} mt={0.5} />;
+    return <Icon as={IconComponent} color={`${style.color}.500`} boxSize={4} />;
   };
 
+  // Get upcoming tasks
+  const upcomingTasks = allTasks
+    .filter((t) => t.due_date && new Date(t.due_date) > new Date())
+    .sort(
+      (a, b) =>
+        new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime()
+    )
+    .slice(0, 5);
+
+  // Get high priority tasks
+  const highPriorityTasks = allTasks
+    .filter(
+      (t) =>
+        (t.priority === TaskPriority.HIGH ||
+          t.priority === TaskPriority.URGENT ||
+          t.priority === TaskPriority.CRITICAL) &&
+        t.status !== TaskStatus.DONE
+    )
+    .slice(0, 5);
+
+  if (statsError) {
+    return (
+      <Box h="full" p={8}>
+        <Alert status="error" borderRadius="lg">
+          <AlertIcon />
+          Failed to load dashboard data
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
-    <Box h="full" p={{ base: 4, md: 6, lg: 8 }}>
-      <VStack align="stretch" spacing={{ base: 4, md: 6, lg: 8 }}>
-        {/* Header */}
-        <Box>
-          <Heading size="lg" mb={2}>
-            Dashboard
-          </Heading>
-          <Text color={textMuted} fontSize="sm">
-            Overview of your tasks and projects
-          </Text>
-        </Box>
-
-        {/* Minimal Stats Cards */}
-        <SimpleGrid columns={{ base: 2, md: 2, lg: 4 }} spacing={{ base: 3, md: 4 }}>
-          <Card bg={cardBg} boxShadow="sm" borderRadius="xl">
-            <CardBody>
+    <Box minH="100vh" bg={bgColor}>
+      <Box maxW="1400px" mx="auto" p={{ base: 4, md: 6, lg: 8 }}>
+        <MotionBox
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {/* Header Section */}
+          <MotionBox variants={itemVariants} mb={8}>
+            <Flex justify="space-between" align="center" mb={2}>
+              <VStack align="flex-start" spacing={1}>
+                <Heading size="lg" color={textColor}>
+                  Welcome back!
+                </Heading>
+                <Text color={textMuted} fontSize="md">
+                  Here's what's happening with your tasks today
+                </Text>
+              </VStack>
               <HStack spacing={3}>
-                <Box p={2} bg="blue.50" borderRadius="lg">
-                  <Icon as={FiTrendingUp} boxSize={5} color="blue.500" />
-                </Box>
-                <Box>
-                  <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
-                    {allTasks.length}
-                  </Text>
-                  <Text fontSize="xs" color={textMuted} noOfLines={1}>
-                    Total Tasks
-                  </Text>
-                </Box>
-              </HStack>
-            </CardBody>
-          </Card>
-
-          <Card bg={cardBg} boxShadow="sm" borderRadius="xl">
-            <CardBody>
-              <HStack spacing={3}>
-                <Box p={2} bg="orange.50" borderRadius="lg">
-                  <Icon as={FiClock} boxSize={5} color="orange.500" />
-                </Box>
-                <Box>
-                  <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
-                    {stats?.in_progress || 0}
-                  </Text>
-                  <Text fontSize="xs" color={textMuted} noOfLines={1}>
-                    In Progress
-                  </Text>
-                </Box>
-              </HStack>
-            </CardBody>
-          </Card>
-
-          <Card bg={cardBg} boxShadow="sm" borderRadius="xl">
-            <CardBody>
-              <HStack spacing={3}>
-                <Box p={2} bg="green.50" borderRadius="lg">
-                  <Icon as={FiCheckCircle} boxSize={5} color="green.500" />
-                </Box>
-                <Box>
-                  <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
-                    {allTasks.filter((task) => task.completed).length}
-                  </Text>
-                  <Text fontSize="xs" color={textMuted} noOfLines={1}>
-                    Completed
-                  </Text>
-                </Box>
-              </HStack>
-            </CardBody>
-          </Card>
-
-          <Card bg={cardBg} boxShadow="sm" borderRadius="xl">
-            <CardBody>
-              <HStack spacing={3}>
-                <Box
-                  p={2}
-                  bg={stats?.overdue ? "red.50" : "gray.50"}
-                  borderRadius="lg"
+                <IconButton
+                  aria-label="Refresh"
+                  icon={<Icon as={FiRefreshCw} />}
+                  variant="outline"
+                  onClick={handleRefresh}
+                  isLoading={isLoading}
+                />
+                <Button
+                  leftIcon={<Icon as={FiPlus} />}
+                  colorScheme="blue"
+                  onClick={() => navigate("/tasks")}
                 >
-                  <Icon
-                    as={FiAlertCircle}
-                    boxSize={5}
-                    color={stats?.overdue ? "red.500" : "gray.500"}
-                  />
-                </Box>
-                <Box>
-                  <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="bold">
-                    {
-                      allTasks.filter(
-                        (task) =>
-                          task.due_date &&
-                          new Date(task.due_date) < new Date() &&
-                          !task.completed
-                      ).length
-                    }
-                  </Text>
-                  <Text fontSize="xs" color={textMuted} noOfLines={1}>
-                    Overdue
-                  </Text>
-                </Box>
+                  New Task
+                </Button>
               </HStack>
-            </CardBody>
-          </Card>
-        </SimpleGrid>
+            </Flex>
+          </MotionBox>
 
-        {/* Main Content Grid */}
-        <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={{ base: 4, md: 6 }}>
-          {/* Task Distribution - Simplified */}
-          <Card
-            bg={cardBg}
-            boxShadow="sm"
-            borderRadius="xl"
-            gridColumn={{ base: "span 1", lg: "span 2" }}
-          >
-            <CardBody>
-              <Text fontSize="sm" fontWeight="semibold" mb={4}>
-                Task Distribution
-              </Text>
+          {/* Stats Cards */}
+          <MotionBox variants={itemVariants}>
+            <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={6} mb={8}>
+              <StatsCard
+                title="Total Tasks"
+                value={isLoading ? "..." : totalTasks}
+                icon={FiFileText}
+                colorScheme="blue"
+                isLoading={isLoading}
+                subtitle={`${todayTasks} created today`}
+                onClick={() => navigate("/tasks")}
+              />
+              <StatsCard
+                title="In Progress"
+                value={isLoading ? "..." : inProgressTasks}
+                icon={FiClock}
+                colorScheme="orange"
+                isLoading={isLoading}
+                subtitle={`${blockedTasks} blocked`}
+                onClick={() => navigate("/tasks")}
+              />
+              <StatsCard
+                title="Completed"
+                value={isLoading ? "..." : completedTasks}
+                icon={FiCheckCircle}
+                colorScheme="green"
+                isLoading={isLoading}
+                subtitle={`${completedThisWeek} this week`}
+                change={completionRate}
+                changeType="increase"
+                onClick={() => navigate("/tasks")}
+              />
+              <StatsCard
+                title="Productivity"
+                value={isLoading ? "..." : `${productivityScore}%`}
+                icon={FiTrendingUp}
+                colorScheme="purple"
+                isLoading={isLoading}
+                subtitle={
+                  overdueTasks > 0 ? `${overdueTasks} overdue` : "All on track"
+                }
+                onClick={() => navigate("/tasks")}
+              />
+            </SimpleGrid>
+          </MotionBox>
 
-              <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={4}>
-                {/* Priority Distribution */}
-                <Box>
-                  <Text fontSize="xs" color={textMuted} mb={3}>
-                    BY PRIORITY
-                  </Text>
-                  <VStack align="stretch" spacing={2}>
-                    {Object.entries(TaskPriority)
-                      .slice(0, 3)
-                      .map(([key, value]) => {
-                        const count =
-                          priorityBreakdown[value as TaskPriority] || 0;
-                        const percentage =
-                          allTasks.length > 0
-                            ? (count / allTasks.length) * 100
+          {/* Charts Section */}
+          <MotionBox variants={itemVariants}>
+            <SimpleGrid columns={{ base: 1, lg: 2 }} spacing={6} mb={8}>
+              <Skeleton isLoaded={!isLoading}>
+                <TaskStatusPieChart tasks={allTasks} />
+              </Skeleton>
+              <Skeleton isLoaded={!isLoading}>
+                <TaskCompletionTrend tasks={allTasks} />
+              </Skeleton>
+              <Skeleton isLoaded={!isLoading}>
+                <PriorityBarChart tasks={allTasks} />
+              </Skeleton>
+              <Skeleton isLoaded={!isLoading}>
+                <TeamPerformanceRadar tasks={allTasks} />
+              </Skeleton>
+            </SimpleGrid>
+          </MotionBox>
+
+          {/* Main Content Grid */}
+          <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
+            {/* Projects Overview */}
+            <MotionBox variants={itemVariants} gridColumn={{ lg: "span 2" }}>
+              <Card bg={cardBg} shadow="md" borderRadius="xl">
+                <CardBody>
+                  <Flex justify="space-between" align="center" mb={4}>
+                    <HStack spacing={2}>
+                      <Icon as={FiBriefcase} color="blue.500" />
+                      <Text
+                        fontSize="lg"
+                        fontWeight="semibold"
+                        color={textColor}
+                      >
+                        Projects Overview
+                      </Text>
+                      <Badge colorScheme="blue" variant="subtle">
+                        {projects.length}
+                      </Badge>
+                    </HStack>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      rightIcon={<Icon as={FiArrowRight} />}
+                      onClick={() => navigate("/projects")}
+                    >
+                      View All
+                    </Button>
+                  </Flex>
+
+                  <VStack align="stretch" spacing={3}>
+                    {isLoading ? (
+                      <>
+                        <Skeleton height="60px" />
+                        <Skeleton height="60px" />
+                        <Skeleton height="60px" />
+                      </>
+                    ) : projects.length > 0 ? (
+                      projects.slice(0, 5).map((project) => {
+                        const projectTasks = allTasks.filter(
+                          (t) => t.project_id === project.id
+                        );
+                        const completed = projectTasks.filter(
+                          (t) => t.status === TaskStatus.DONE
+                        ).length;
+                        const progress =
+                          projectTasks.length > 0
+                            ? Math.round(
+                                (completed / projectTasks.length) * 100
+                              )
                             : 0;
+
                         return (
-                          <Box key={key}>
-                            <HStack justify="space-between" mb={1}>
-                              <Text fontSize="xs" textTransform="capitalize">
-                                {key.toLowerCase()}
+                          <Box
+                            key={project.id}
+                            p={3}
+                            borderRadius="lg"
+                            border="1px"
+                            borderColor={borderColor}
+                            _hover={{ bg: hoverBg }}
+                            cursor="pointer"
+                            onClick={() => navigate(`/projects/${project.id}`)}
+                            transition="all 0.2s"
+                          >
+                            <Flex justify="space-between" align="center" mb={2}>
+                              <HStack spacing={3}>
+                                <Box
+                                  w={3}
+                                  h={3}
+                                  bg={project.color}
+                                  borderRadius="full"
+                                />
+                                <Text fontWeight="medium" color={textColor}>
+                                  {project.name}
+                                </Text>
+                              </HStack>
+                              <Text fontSize="sm" color={textMuted}>
+                                {completed}/{projectTasks.length} tasks
                               </Text>
-                              <Text fontSize="xs" color={textMuted}>
-                                {count}
-                              </Text>
-                            </HStack>
+                            </Flex>
                             <Progress
-                              value={percentage}
-                              size="xs"
-                              colorScheme={
-                                priorityColors[value as TaskPriority]
-                              }
+                              value={progress}
+                              size="sm"
+                              colorScheme="blue"
                               borderRadius="full"
-                              bg={progressBg}
                             />
                           </Box>
                         );
-                      })}
+                      })
+                    ) : (
+                      <Text color={textMuted} textAlign="center" py={4}>
+                        No projects yet
+                      </Text>
+                    )}
                   </VStack>
-                </Box>
+                </CardBody>
+              </Card>
+            </MotionBox>
 
-                {/* Status Distribution */}
-                <Box>
-                  <Text fontSize="xs" color={textMuted} mb={3}>
-                    BY STATUS
-                  </Text>
-                  <VStack align="stretch" spacing={2}>
-                    {[
-                      TaskStatus.TODO,
-                      TaskStatus.IN_PROGRESS,
-                      TaskStatus.DONE,
-                    ].map((status) => {
-                      const count = statusBreakdown[status] || 0;
-                      const percentage =
-                        allTasks.length > 0
-                          ? (count / allTasks.length) * 100
-                          : 0;
-                      const labels = {
-                        [TaskStatus.TODO]: "To Do",
-                        [TaskStatus.IN_PROGRESS]: "In Progress",
-                        [TaskStatus.DONE]: "Completed",
-                      };
-                      return (
-                        <Box key={status}>
-                          <HStack justify="space-between" mb={1}>
-                            <Text fontSize="xs">{labels[status]}</Text>
-                            <Text fontSize="xs" color={textMuted}>
-                              {count}
-                            </Text>
-                          </HStack>
-                          <Progress
-                            value={percentage}
-                            size="xs"
-                            colorScheme={statusColors[status]}
-                            borderRadius="full"
-                            bg={progressBg}
-                          />
-                        </Box>
-                      );
-                    })}
-                  </VStack>
-                </Box>
-              </SimpleGrid>
-            </CardBody>
-          </Card>
-
-          {/* Recent Activity - Real Activities from API */}
-          <Card bg={cardBg} boxShadow="sm" borderRadius="xl">
-            <CardBody>
-              <HStack justify="space-between" mb={4}>
-                <Text fontSize="sm" fontWeight="semibold">
-                  Recent Activity
-                </Text>
-                {userActivities.length > 0 && (
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    leftIcon={<Icon as={FiTrash2} boxSize={3} />}
-                    onClick={handleClearActivities}
-                    color="red.500"
-                    _hover={{ bg: "red.50" }}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </HStack>
-              
-              <Box maxH="300px" overflowY="auto" pr={2}>
-                <VStack align="stretch" spacing={3}>
-                  {activitiesLoading ? (
-                    <Spinner size="sm" />
-                  ) : userActivities.length > 0 ? (
-                    userActivities.slice(0, 20).map((activity) => (
-                      <HStack key={activity.id} spacing={3} align="flex-start">
-                        {getActivityIcon(activity)}
-                        <Box flex={1}>
-                          <Text fontSize="xs" fontWeight="medium">
-                            {activity.description}
-                          </Text>
-                          <HStack spacing={2} mt={0.5}>
-                            <Text fontSize="xs" color={textMuted}>
-                              {formatDistanceToNow(new Date(activity.created_at), {
-                                addSuffix: true,
-                              })}
-                            </Text>
-                            {activity.project_name && (
-                              <>
-                                <Text fontSize="xs" color={textMuted}>•</Text>
-                                <Text fontSize="xs" color={textMuted} noOfLines={1}>
-                                  {activity.project_name}
-                                </Text>
-                              </>
-                            )}
-                          </HStack>
-                        </Box>
-                      </HStack>
-                    ))
-                  ) : recentActivities.length > 0 ? (
-                    // Fallback to task-based activities if no user activities yet
-                    recentActivities.map((task) => (
-                      <HStack key={task.id} spacing={3} align="flex-start">
-                        {getTaskActivityIcon(task)}
-                        <Box flex={1}>
-                          <HStack spacing={2} align="baseline">
-                            <Text fontSize="xs" fontWeight="medium">
-                              {getActivityText(task)}
-                            </Text>
-                            <Text fontSize="xs" noOfLines={1} color={textMuted}>
-                              "{task.title}"
-                            </Text>
-                          </HStack>
-                          <HStack spacing={2} mt={0.5}>
-                            <Text fontSize="xs" color={textMuted}>
-                              {formatDistanceToNow(new Date(task.updated_at || task.created_at), {
-                                addSuffix: true,
-                              })}
-                            </Text>
-                            {task.project && (
-                              <>
-                                <Text fontSize="xs" color={textMuted}>•</Text>
-                                <Text fontSize="xs" color={textMuted} noOfLines={1}>
-                                  {task.project.name}
-                                </Text>
-                              </>
-                            )}
-                          </HStack>
-                        </Box>
-                      </HStack>
-                    ))
-                  ) : (
-                    <Text fontSize="xs" color={textMuted} textAlign="center">
-                      No recent activity
-                    </Text>
-                  )}
-                </VStack>
-              </Box>
-              
-              {userActivities.length > 4 && (
-                <Text 
-                  fontSize="xs" 
-                  color={textMuted} 
-                  textAlign="center" 
-                  mt={3}
-                  fontStyle="italic"
-                >
-                  Scroll to see more activities
-                </Text>
-              )}
-            </CardBody>
-          </Card>
-        </SimpleGrid>
-
-        {/* Project Task Breakdown */}
-        {projects.length > 0 && (
-          <Card bg={cardBg} boxShadow="sm" borderRadius="xl">
-            <CardBody>
-              <HStack justify="space-between" mb={4}>
-                <Text fontSize="sm" fontWeight="semibold">
-                  Projects ({projects.length})
-                </Text>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  rightIcon={<Icon as={FiArrowRight} />}
-                  onClick={() => navigate("/projects")}
-                  color="primary.500"
-                  _hover={{ bg: "primary.50" }}
-                >
-                  See All
-                </Button>
-              </HStack>
-              <VStack align="stretch" spacing={3}>
-                {projects.slice(0, 5).map((project) => {
-                  const projectTasks = allTasks.filter(
-                    (task) => task.project_id === project.id
-                  );
-                  const completedTasks = projectTasks.filter(
-                    (task) => task.completed || task.status === "done"
-                  );
-                  const progress =
-                    projectTasks.length > 0
-                      ? (completedTasks.length / projectTasks.length) * 100
-                      : 0;
-
-                  return (
-                    <HStack
-                      key={project.id}
-                      justify="space-between"
-                      spacing={4}
-                    >
-                      <HStack spacing={3} flex={1}>
-                        <Box
-                          w={3}
-                          h={3}
-                          bg={project.color}
-                          borderRadius="full"
-                          flexShrink={0}
-                        />
-                        <VStack align="flex-start" spacing={0} flex={1}>
-                          <Text fontSize="sm" fontWeight="medium" noOfLines={1}>
-                            {project.name}
-                          </Text>
-                          <Text fontSize="xs" color={textMuted}>
-                            {completedTasks.length}/{projectTasks.length}{" "}
-                            completed
-                          </Text>
-                        </VStack>
-                      </HStack>
-                      <HStack spacing={2}>
-                        <Badge
-                          colorScheme={
-                            projectTasks.length > 0 ? "blue" : "gray"
-                          }
-                          variant="subtle"
-                          fontSize="xs"
-                        >
-                          {projectTasks.length}
-                        </Badge>
-                        <Box w={16}>
-                          <Progress
-                            value={progress}
-                            size="xs"
-                            colorScheme="green"
-                            borderRadius="full"
-                            bg={progressBg}
-                          />
-                        </Box>
-                      </HStack>
-                    </HStack>
-                  );
-                })}
-                {projects.length > 5 && (
-                  <Text
-                    fontSize="xs"
-                    color={textMuted}
-                    textAlign="center"
-                    pt={2}
-                  >
-                    +{projects.length - 5} more projects
-                  </Text>
-                )}
-              </VStack>
-            </CardBody>
-          </Card>
-        )}
-
-        {/* Upcoming Tasks */}
-        {(() => {
-          const upcomingTasks = allTasks
-            .filter(
-              (task) => task.due_date && new Date(task.due_date) > new Date()
-            )
-            .sort(
-              (a, b) =>
-                new Date(a.due_date!).getTime() -
-                new Date(b.due_date!).getTime()
-            )
-            .slice(0, 3);
-
-          return upcomingTasks.length > 0 ? (
-            <Card bg={cardBg} boxShadow="sm" borderRadius="xl">
-              <CardBody>
-                <Text fontSize="sm" fontWeight="semibold" mb={4}>
-                  Upcoming Deadlines
-                </Text>
-                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={{ base: 3, md: 6 }}>
-                  {upcomingTasks.map((task) => (
-                    <HStack key={task.id} flex={1}>
-                      <Badge colorScheme="orange" fontSize="xs">
-                        {formatDistanceToNow(new Date(task.due_date!), {
-                          addSuffix: false,
-                        })}
-                      </Badge>
-                      <Text fontSize="sm" noOfLines={1}>
-                        {task.title}
+            {/* Recent Activity */}
+            <MotionBox variants={itemVariants}>
+              <Card bg={cardBg} shadow="md" borderRadius="xl">
+                <CardBody>
+                  <Flex justify="space-between" align="center" mb={4}>
+                    <HStack spacing={2}>
+                      <Icon as={FiActivity} color="purple.500" />
+                      <Text
+                        fontSize="lg"
+                        fontWeight="semibold"
+                        color={textColor}
+                      >
+                        Recent Activity
                       </Text>
                     </HStack>
-                  ))}
-                </SimpleGrid>
-              </CardBody>
-            </Card>
-          ) : null;
-        })()}
-      </VStack>
+                    {activities.length > 0 && (
+                      <IconButton
+                        aria-label="Clear activities"
+                        icon={<Icon as={FiTrash2} />}
+                        size="sm"
+                        variant="ghost"
+                        color="red.500"
+                        onClick={handleClearActivities}
+                      />
+                    )}
+                  </Flex>
+
+                  <Box maxH="400px" overflowY="auto">
+                    <VStack align="stretch" spacing={3}>
+                      {activitiesLoading ? (
+                        <>
+                          <SkeletonText noOfLines={2} />
+                          <SkeletonText noOfLines={2} />
+                          <SkeletonText noOfLines={2} />
+                        </>
+                      ) : activities.length > 0 ? (
+                        activities.slice(0, 15).map((activity) => (
+                          <HStack
+                            key={activity.id}
+                            spacing={3}
+                            align="flex-start"
+                          >
+                            {getActivityIcon(activity)}
+                            <Box flex={1}>
+                              <Text fontSize="sm" color={textColor}>
+                                {activity.description}
+                              </Text>
+                              <Text fontSize="xs" color={textMuted}>
+                                {formatDistanceToNow(
+                                  new Date(activity.created_at),
+                                  {
+                                    addSuffix: true,
+                                  }
+                                )}
+                              </Text>
+                            </Box>
+                          </HStack>
+                        ))
+                      ) : (
+                        <Text color={textMuted} textAlign="center" py={4}>
+                          No recent activity
+                        </Text>
+                      )}
+                    </VStack>
+                  </Box>
+                </CardBody>
+              </Card>
+            </MotionBox>
+
+            {/* Upcoming Deadlines */}
+            {upcomingTasks.length > 0 && (
+              <MotionBox variants={itemVariants} gridColumn={{ lg: "span 2" }}>
+                <Card bg={cardBg} shadow="md" borderRadius="xl">
+                  <CardBody>
+                    <HStack spacing={2} mb={4}>
+                      <Icon as={FiCalendar} color="orange.500" />
+                      <Text
+                        fontSize="lg"
+                        fontWeight="semibold"
+                        color={textColor}
+                      >
+                        Upcoming Deadlines
+                      </Text>
+                    </HStack>
+
+                    <VStack align="stretch" spacing={3}>
+                      {upcomingTasks.map((task) => (
+                        <HStack
+                          key={task.id}
+                          p={3}
+                          borderRadius="lg"
+                          border="1px"
+                          borderColor={borderColor}
+                          _hover={{ bg: hoverBg }}
+                          cursor="pointer"
+                          onClick={() => navigate("/tasks")}
+                        >
+                          <Badge colorScheme="orange" variant="subtle">
+                            {format(new Date(task.due_date!), "MMM dd")}
+                          </Badge>
+                          <Text fontSize="sm" color={textColor} noOfLines={1}>
+                            {task.title}
+                          </Text>
+                          {task.project && (
+                            <Badge
+                              colorScheme="purple"
+                              variant="subtle"
+                              ml="auto"
+                            >
+                              {task.project.name}
+                            </Badge>
+                          )}
+                        </HStack>
+                      ))}
+                    </VStack>
+                  </CardBody>
+                </Card>
+              </MotionBox>
+            )}
+
+            {/* High Priority Tasks */}
+            {highPriorityTasks.length > 0 && (
+              <MotionBox variants={itemVariants}>
+                <Card bg={cardBg} shadow="md" borderRadius="xl">
+                  <CardBody>
+                    <HStack spacing={2} mb={4}>
+                      <Icon as={FiAlertCircle} color="red.500" />
+                      <Text
+                        fontSize="lg"
+                        fontWeight="semibold"
+                        color={textColor}
+                      >
+                        High Priority
+                      </Text>
+                    </HStack>
+
+                    <VStack align="stretch" spacing={3}>
+                      {highPriorityTasks.map((task) => (
+                        <HStack
+                          key={task.id}
+                          p={3}
+                          borderRadius="lg"
+                          border="1px"
+                          borderColor={borderColor}
+                          _hover={{ bg: hoverBg }}
+                          cursor="pointer"
+                          onClick={() => navigate("/tasks")}
+                        >
+                          <Badge
+                            colorScheme={
+                              task.priority === TaskPriority.CRITICAL
+                                ? "red"
+                                : task.priority === TaskPriority.URGENT
+                                ? "orange"
+                                : "yellow"
+                            }
+                            variant="solid"
+                          >
+                            {task.priority}
+                          </Badge>
+                          <Text fontSize="sm" color={textColor} noOfLines={1}>
+                            {task.title}
+                          </Text>
+                        </HStack>
+                      ))}
+                    </VStack>
+                  </CardBody>
+                </Card>
+              </MotionBox>
+            )}
+          </SimpleGrid>
+        </MotionBox>
+      </Box>
     </Box>
   );
 }

@@ -22,6 +22,11 @@ import {
   Flex,
   IconButton,
   Tooltip,
+  Checkbox,
+  MenuDivider,
+  MenuGroup,
+  MenuItemOption,
+  MenuOptionGroup,
 } from "@chakra-ui/react";
 import {
   FiSearch,
@@ -31,17 +36,22 @@ import {
   FiGrid,
   FiList,
   FiRefreshCw,
+  FiLayout,
+  FiCheck,
+  FiArrowDown,
 } from "react-icons/fi";
-import { KanbanBoardSimple } from "../components/tasks/KanbanBoardSimple";
 import { TaskListSimple } from "../components/tasks/TaskListSimple";
+import { TaskGridView } from "../components/tasks/TaskGridView";
 import { useEffect, useState } from "react";
 import { ProjectService, type Project } from "../services/projectService";
 import { CreateTaskModal } from "../components/tasks/CreateTaskModal";
 import { useTaskRefresh } from "../context/TaskRefreshContext";
 import { TaskDetailPanel } from "../components/layout/TaskDetailPanel";
+import { TaskStatus } from "../types/task";
+import { type SortOption, getSortLabel } from "../utils/taskSort";
 
 export function Tasks() {
-  const [selectedView, setSelectedView] = useState<"Board" | "List">("Board");
+  const [selectedView, setSelectedView] = useState<"List" | "Grid">("Grid");
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | undefined>(
     undefined
@@ -50,6 +60,11 @@ export function Tasks() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     undefined
   );
+  const [selectedStatuses, setSelectedStatuses] = useState<TaskStatus[]>([
+    TaskStatus.TODO,
+    TaskStatus.IN_PROGRESS,
+  ]);
+  const [sortBy, setSortBy] = useState<SortOption>('created_desc');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { refreshTrigger, triggerRefresh } = useTaskRefresh();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -60,6 +75,19 @@ export function Tasks() {
   const borderColor = useColorModeValue("gray.200", "gray.700");
   const textColor = useColorModeValue("gray.900", "gray.100");
   const mutedTextColor = useColorModeValue("gray.600", "gray.400");
+
+  // Load saved sort preference
+  useEffect(() => {
+    const savedSort = localStorage.getItem('taskSortPreference');
+    if (savedSort) {
+      setSortBy(savedSort as SortOption);
+    }
+  }, []);
+
+  // Save sort preference
+  useEffect(() => {
+    localStorage.setItem('taskSortPreference', sortBy);
+  }, [sortBy]);
 
   // Load accessible projects from API
   useEffect(() => {
@@ -96,6 +124,34 @@ export function Tasks() {
     if (!projectId) return "blue";
     const project = projects.find((p) => p.id === projectId);
     return project?.color || "blue";
+  };
+
+  // Status options for filter
+  const statusOptions = [
+    { value: TaskStatus.BACKLOG, label: "Backlog", color: "gray" },
+    { value: TaskStatus.TODO, label: "To Do", color: "blue" },
+    { value: TaskStatus.IN_PROGRESS, label: "In Progress", color: "yellow" },
+    { value: TaskStatus.IN_REVIEW, label: "In Review", color: "purple" },
+    { value: TaskStatus.BLOCKED, label: "Blocked", color: "red" },
+    { value: TaskStatus.DONE, label: "Completed", color: "green" },
+    { value: TaskStatus.CANCELLED, label: "Cancelled", color: "gray" },
+  ];
+
+  const handleStatusToggle = (status: TaskStatus) => {
+    setSelectedStatuses((prev) => {
+      if (prev.includes(status)) {
+        return prev.filter((s) => s !== status);
+      }
+      return [...prev, status];
+    });
+  };
+
+  const handleSelectAllStatuses = () => {
+    setSelectedStatuses(statusOptions.map(opt => opt.value));
+  };
+
+  const handleClearStatuses = () => {
+    setSelectedStatuses([TaskStatus.TODO, TaskStatus.IN_PROGRESS]);
   };
 
   // Streamlined views retained only for future extension
@@ -200,61 +256,147 @@ export function Tasks() {
             />
           </InputGroup>
 
-          <Menu>
+          <Menu closeOnSelect={false}>
             <MenuButton
               as={Button}
               variant="outline"
               leftIcon={<Icon as={FiFilter} />}
               size="sm"
             >
-              Filter
+              Filter ({selectedStatuses.length})
+            </MenuButton>
+            <MenuList minWidth="240px">
+              <MenuGroup title="Status Filter">
+                <HStack px={3} py={2} justify="space-between">
+                  <Button size="xs" variant="link" onClick={handleSelectAllStatuses}>
+                    Select All
+                  </Button>
+                  <Button size="xs" variant="link" onClick={handleClearStatuses}>
+                    Clear
+                  </Button>
+                </HStack>
+                <MenuDivider />
+                {statusOptions.map((option) => (
+                  <MenuItem key={option.value} closeOnSelect={false}>
+                    <HStack w="full" justify="space-between">
+                      <HStack flex={1} onClick={() => handleStatusToggle(option.value)} cursor="pointer">
+                        <Box w={2} h={2} bg={`${option.color}.400`} borderRadius="full" />
+                        <Text fontSize="sm">{option.label}</Text>
+                      </HStack>
+                      <Checkbox
+                        isChecked={selectedStatuses.includes(option.value)}
+                        onChange={() => handleStatusToggle(option.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </HStack>
+                  </MenuItem>
+                ))}
+              </MenuGroup>
+            </MenuList>
+          </Menu>
+
+          {/* Sort dropdown */}
+          <Menu>
+            <MenuButton
+              as={Button}
+              variant="outline"
+              leftIcon={<Icon as={FiArrowDown} />}
+              size="sm"
+            >
+              {getSortLabel(sortBy)}
             </MenuButton>
             <MenuList>
-              <MenuItem onClick={() => setStatusFilter(undefined)}>
-                All statuses
-              </MenuItem>
-              <MenuItem onClick={() => setStatusFilter("todo")}>
-                To Do
-              </MenuItem>
-              <MenuItem onClick={() => setStatusFilter("in_progress")}>
-                In Progress
-              </MenuItem>
-              <MenuItem onClick={() => setStatusFilter("done")}>
-                Done
-              </MenuItem>
+              <MenuGroup title="Sort by">
+                <MenuItem onClick={() => setSortBy('created_desc')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>Newest First</Text>
+                    {sortBy === 'created_desc' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+                <MenuItem onClick={() => setSortBy('created_asc')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>Oldest First</Text>
+                    {sortBy === 'created_asc' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+                <MenuDivider />
+                <MenuItem onClick={() => setSortBy('alpha_asc')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>A → Z</Text>
+                    {sortBy === 'alpha_asc' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+                <MenuItem onClick={() => setSortBy('alpha_desc')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>Z → A</Text>
+                    {sortBy === 'alpha_desc' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+                <MenuDivider />
+                <MenuItem onClick={() => setSortBy('priority_high')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>Priority ↓</Text>
+                    {sortBy === 'priority_high' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+                <MenuItem onClick={() => setSortBy('priority_low')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>Priority ↑</Text>
+                    {sortBy === 'priority_low' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+                <MenuDivider />
+                <MenuItem onClick={() => setSortBy('due_soon')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>Due Soon</Text>
+                    {sortBy === 'due_soon' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+                <MenuItem onClick={() => setSortBy('due_late')}>
+                  <HStack justify="space-between" w="full">
+                    <Text>Due Later</Text>
+                    {sortBy === 'due_late' && <Icon as={FiCheck} color="blue.500" />}
+                  </HStack>
+                </MenuItem>
+              </MenuGroup>
             </MenuList>
           </Menu>
 
           {/* View switcher */}
           <HStack spacing={1}>
-            <IconButton
-              aria-label="Board view"
-              icon={<Icon as={FiGrid} />}
-              variant={selectedView === "Board" ? "solid" : "ghost"}
-              colorScheme={selectedView === "Board" ? "primary" : "gray"}
-              size="sm"
-              onClick={() => setSelectedView("Board")}
-            />
-            <IconButton
-              aria-label="List view"
-              icon={<Icon as={FiList} />}
-              variant={selectedView === "List" ? "solid" : "ghost"}
-              colorScheme={selectedView === "List" ? "primary" : "gray"}
-              size="sm"
-              onClick={() => setSelectedView("List")}
-            />
+            <Tooltip label="Grid view">
+              <IconButton
+                aria-label="Grid view"
+                icon={<Icon as={FiGrid} />}
+                variant={selectedView === "Grid" ? "solid" : "ghost"}
+                colorScheme={selectedView === "Grid" ? "primary" : "gray"}
+                size="sm"
+                onClick={() => setSelectedView("Grid")}
+              />
+            </Tooltip>
+            <Tooltip label="List view">
+              <IconButton
+                aria-label="List view"
+                icon={<Icon as={FiList} />}
+                variant={selectedView === "List" ? "solid" : "ghost"}
+                colorScheme={selectedView === "List" ? "primary" : "gray"}
+                size="sm"
+                onClick={() => setSelectedView("List")}
+              />
+            </Tooltip>
           </HStack>
         </HStack>
       </Box>
 
       {/* Main Content Area */}
       <Box flex={1} overflow="hidden">
-        {selectedView === "Board" ? (
-          <KanbanBoardSimple
+        {selectedView === "Grid" ? (
+          <TaskGridView
             refreshTrigger={refreshTrigger}
             projectId={activeProjectId}
             searchQuery={searchQuery}
-            statusFilter={statusFilter as any}
+            selectedStatuses={selectedStatuses}
+            sortBy={sortBy}
           />
         ) : (
           <TaskListSimple
@@ -262,6 +404,7 @@ export function Tasks() {
             projectId={activeProjectId}
             searchQuery={searchQuery}
             statusFilter={(statusFilter as any) || "ALL"}
+            sortBy={sortBy}
           />
         )}
       </Box>

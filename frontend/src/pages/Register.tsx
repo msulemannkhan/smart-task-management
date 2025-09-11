@@ -56,7 +56,7 @@ export function Register() {
   // Real-time password validation
   const passwordValidation = useMemo(() => {
     return {
-      minLength: password.length >= 6,
+      minLength: password.length >= 8,
       hasLowercase: /[a-z]/.test(password),
       hasUppercase: /[A-Z]/.test(password),
       hasNumber: /\d/.test(password),
@@ -311,7 +311,7 @@ export function Register() {
                       <VStack spacing={2} align="stretch">
                         <ValidationItem 
                           isValid={passwordValidation.minLength} 
-                          text="Minimum 6 characters" 
+                          text="Minimum 8 characters" 
                         />
                         <ValidationItem 
                           isValid={passwordValidation.hasLowercase} 

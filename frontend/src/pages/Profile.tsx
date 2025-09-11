@@ -30,7 +30,15 @@ import {
   useDisclosure,
 } from "@chakra-ui/react";
 import { useState, useEffect } from "react";
-import { FiEdit2, FiSave, FiX, FiLock, FiEye, FiEyeOff, FiShield } from "react-icons/fi";
+import {
+  FiEdit2,
+  FiSave,
+  FiX,
+  FiLock,
+  FiEye,
+  FiEyeOff,
+  FiShield,
+} from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 
 export function Profile() {
@@ -43,9 +51,13 @@ export function Profile() {
     email: "",
     bio: "",
   });
-  
+
   // Password change modal state
-  const { isOpen: isPasswordModalOpen, onOpen: onPasswordModalOpen, onClose: onPasswordModalClose } = useDisclosure();
+  const {
+    isOpen: isPasswordModalOpen,
+    onOpen: onPasswordModalOpen,
+    onClose: onPasswordModalClose,
+  } = useDisclosure();
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
@@ -92,7 +104,11 @@ export function Profile() {
 
   const handlePasswordChange = async () => {
     // Validation
-    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+    if (
+      !passwordData.currentPassword ||
+      !passwordData.newPassword ||
+      !passwordData.confirmPassword
+    ) {
       toast({
         title: "All fields are required",
         status: "error",
@@ -121,17 +137,22 @@ export function Profile() {
 
     setIsChangingPassword(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:9200'}/api/v1/users/change-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          current_password: passwordData.currentPassword,
-          new_password: passwordData.newPassword,
-        }),
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:9200"
+        }/api/v1/users/change-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            current_password: passwordData.currentPassword,
+            new_password: passwordData.newPassword,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -144,7 +165,7 @@ export function Profile() {
         status: "success",
         duration: 3000,
       });
-      
+
       // Reset form and close modal
       setPasswordData({
         currentPassword: "",
@@ -155,7 +176,8 @@ export function Profile() {
     } catch (error) {
       toast({
         title: "Failed to change password",
-        description: error instanceof Error ? error.message : "Please try again later",
+        description:
+          error instanceof Error ? error.message : "Please try again later",
         status: "error",
         duration: 5000,
       });
@@ -187,7 +209,14 @@ export function Profile() {
   }
 
   return (
-    <Box h="full" bg="white" p={6}>
+    <Box
+      h="full"
+      p={6}
+      bg="white"
+      _dark={{ bg: "black", color: "gray.100" }}
+      color="gray.800"
+      boxShadow={{ base: "sm", _dark: "md" }}
+    >
       <VStack align="stretch" spacing={6} maxW="2xl" mx="auto">
         {/* Header */}
         <HStack justify="space-between" align="center">
@@ -311,7 +340,9 @@ export function Profile() {
               <HStack justify="space-between">
                 <VStack align="start" spacing={0}>
                   <Text fontWeight="medium">Password</Text>
-                  <Text fontSize="sm" color="gray.600">Last changed 30 days ago</Text>
+                  <Text fontSize="sm" color="gray.600">
+                    Last changed 30 days ago
+                  </Text>
                 </VStack>
                 <Button
                   leftIcon={<FiLock />}
@@ -326,7 +357,9 @@ export function Profile() {
               <HStack justify="space-between">
                 <VStack align="start" spacing={0}>
                   <Text fontWeight="medium">Two-Factor Authentication</Text>
-                  <Text fontSize="sm" color="gray.600">Add an extra layer of security</Text>
+                  <Text fontSize="sm" color="gray.600">
+                    Add an extra layer of security
+                  </Text>
                 </VStack>
                 <Badge colorScheme="yellow">Coming Soon</Badge>
               </HStack>
@@ -374,7 +407,11 @@ export function Profile() {
       </VStack>
 
       {/* Change Password Modal */}
-      <Modal isOpen={isPasswordModalOpen} onClose={onPasswordModalClose} size="md">
+      <Modal
+        isOpen={isPasswordModalOpen}
+        onClose={onPasswordModalClose}
+        size="md"
+      >
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Change Password</ModalHeader>
@@ -398,11 +435,15 @@ export function Profile() {
                   />
                   <InputRightElement>
                     <IconButton
-                      aria-label={showCurrentPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showCurrentPassword ? "Hide password" : "Show password"
+                      }
                       icon={showCurrentPassword ? <FiEyeOff /> : <FiEye />}
                       variant="ghost"
                       size="sm"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      onClick={() =>
+                        setShowCurrentPassword(!showCurrentPassword)
+                      }
                     />
                   </InputRightElement>
                 </InputGroup>
@@ -425,7 +466,9 @@ export function Profile() {
                   />
                   <InputRightElement>
                     <IconButton
-                      aria-label={showNewPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showNewPassword ? "Hide password" : "Show password"
+                      }
                       icon={showNewPassword ? <FiEyeOff /> : <FiEye />}
                       variant="ghost"
                       size="sm"
@@ -452,21 +495,27 @@ export function Profile() {
                   />
                   <InputRightElement>
                     <IconButton
-                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showConfirmPassword ? "Hide password" : "Show password"
+                      }
                       icon={showConfirmPassword ? <FiEyeOff /> : <FiEye />}
                       variant="ghost"
                       size="sm"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                     />
                   </InputRightElement>
                 </InputGroup>
               </FormControl>
 
-              {passwordData.newPassword && passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword && (
-                <Text fontSize="sm" color="red.500">
-                  Passwords do not match
-                </Text>
-              )}
+              {passwordData.newPassword &&
+                passwordData.confirmPassword &&
+                passwordData.newPassword !== passwordData.confirmPassword && (
+                  <Text fontSize="sm" color="red.500">
+                    Passwords do not match
+                  </Text>
+                )}
             </VStack>
           </ModalBody>
 

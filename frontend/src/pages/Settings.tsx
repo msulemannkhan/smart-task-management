@@ -73,7 +73,14 @@ export function Settings() {
   };
 
   return (
-    <Box h="full" bg="white" p={6}>
+    <Box
+      h="full"
+      p={6}
+      bg="white"
+      _dark={{ bg: "black", color: "gray.100" }}
+      color="gray.800"
+      boxShadow={{ base: "sm", _dark: "md" }}
+    >
       <VStack align="stretch" spacing={6} maxW="2xl" mx="auto">
         {/* Header */}
         <Heading size="lg">Settings</Heading>

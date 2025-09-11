@@ -31,6 +31,7 @@ async def list_projects(
         select(Project)
         .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
         .where(or_(Project.owner_id == current_user.id, ProjectMember.user_id == current_user.id))
+        .distinct()  # Add distinct to avoid duplicates from multiple members
         .order_by(Project.created_at.desc())
     )
     result = await session.execute(stmt)
@@ -72,6 +73,7 @@ async def get_project(
                 or_(Project.owner_id == current_user.id, ProjectMember.user_id == current_user.id),
             )
         )
+        .distinct()  # Add distinct to avoid duplicates from multiple members
     )
     result = await session.execute(stmt)
     project = result.scalar_one_or_none()

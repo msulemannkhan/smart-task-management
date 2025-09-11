@@ -18,6 +18,7 @@ import { useTask } from "../../context/TaskContext";
 import { TaskStatus, TaskPriority } from "../../types/task";
 import { TaskService } from "../../services/taskService";
 import type { Task as ApiTask } from "../../types/task";
+import { sortTasks, type SortOption } from "../../utils/taskSort";
 
 // Use API Task type for consistency
 type Task = ApiTask;
@@ -315,11 +316,13 @@ export function KanbanBoardSimple({
   projectId,
   searchQuery,
   statusFilter,
+  sortBy,
 }: {
   refreshTrigger?: number;
   projectId?: string;
   searchQuery?: string;
   statusFilter?: TaskStatus | string | undefined;
+  sortBy?: SortOption;
 }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -330,31 +333,32 @@ export function KanbanBoardSimple({
     try {
       setIsLoading(true);
       setError(null);
-      const query = (searchQuery || "").trim();
-      const baseParams: any = {};
-      if (projectId) baseParams.project_id = projectId;
-      if (statusFilter && statusFilter !== "ALL")
-        baseParams.status = statusFilter;
-
-      let response;
-      if (query.length > 0) {
-        response = await TaskService.searchTasks({
-          project_id: projectId,
-          status:
-            statusFilter && statusFilter !== "ALL"
-              ? [statusFilter as TaskStatus]
-              : undefined,
-          query,
-          limit: 100,
-          offset: 0,
-        } as any);
-      } else {
-        response = await TaskService.getAllTasks({
-          ...baseParams,
-          per_page: 100,
-        });
+      
+      // Fetch all tasks first
+      const response = await TaskService.getAllTasks({
+        project_id: projectId,
+        status: statusFilter && statusFilter !== "ALL" ? statusFilter as TaskStatus : undefined,
+        per_page: 100,
+      });
+      
+      let filteredTasks = response.tasks;
+      
+      // Apply client-side search filter for better reliability
+      if (searchQuery && searchQuery.trim().length > 0) {
+        const query = searchQuery.toLowerCase().trim();
+        filteredTasks = filteredTasks.filter(task => 
+          task.title.toLowerCase().includes(query) ||
+          (task.description && task.description.toLowerCase().includes(query)) ||
+          (task.category && task.category.name.toLowerCase().includes(query))
+        );
       }
-      setTasks(response.tasks);
+      
+      // Apply sorting
+      if (sortBy) {
+        filteredTasks = sortTasks(filteredTasks, sortBy);
+      }
+      
+      setTasks(filteredTasks);
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to fetch tasks";
@@ -367,7 +371,7 @@ export function KanbanBoardSimple({
   useEffect(() => {
     fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshTrigger, projectId, searchQuery, statusFilter]);
+  }, [refreshTrigger, projectId, searchQuery, statusFilter, sortBy]);
 
   const columns: KanbanColumn[] = useMemo(() => {
     const tasksByStatus = tasks.reduce((acc, task) => {

@@ -55,11 +55,14 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: Union[list[str], str] = [
         "http://localhost:8086",
+        "http://localhost:3000",
         "http://localhost:5173",
-        "http://localhost:5174",  # Added for current frontend port
+        "http://localhost:5174",
         "http://127.0.0.1:8086",
+        "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",  # Added for current frontend port
+        "http://127.0.0.1:5174",
+        "https://taskmanager.sulemankhan.me",  # Production domain
     ]
     
     @field_validator('BACKEND_CORS_ORIGINS', mode='before')

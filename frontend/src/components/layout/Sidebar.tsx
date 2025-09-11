@@ -171,8 +171,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   const SidebarContent = () => (
     <Box
+      as="aside"
       w={{ base: "full", lg: "280px" }}
-      bg={{ base: "white", _dark: "gray.800" }}
+      bg="white"
+      _dark={{ bg: "black" }}
       borderRight={{ base: "none", lg: "1px" }}
       borderRightColor={{ base: "gray.200", _dark: "gray.700" }}
       h="100vh"
@@ -315,11 +317,11 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             >
               Settings
             </MenuItem>
-            <MenuItem 
-              icon={colorMode === 'light' ? <FiMoon /> : <FiSun />} 
+            <MenuItem
+              icon={colorMode === "light" ? <FiMoon /> : <FiSun />}
               onClick={toggleColorMode}
             >
-              {colorMode === 'light' ? 'Dark Mode' : 'Light Mode'}
+              {colorMode === "light" ? "Dark Mode" : "Light Mode"}
             </MenuItem>
             <MenuItem icon={<FiHelpCircle />} onClick={() => navigate("/help")}>
               Help & Support

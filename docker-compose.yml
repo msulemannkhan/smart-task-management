@@ -40,7 +40,7 @@ services:
       - DATABASE_URL=postgresql://postgres:${SMART_TASK_DB_PASSWORD:-localdev123}@database:5432/smart_task_management
       - DIRECT_URL=postgresql://postgres:${SMART_TASK_DB_PASSWORD:-localdev123}@database:5432/smart_task_management
       # CORS configuration from .env.ports
-      - BACKEND_CORS_ORIGINS=${CORS_ORIGINS:-https://taskmanager.sulemankhan.me}
+      - BACKEND_CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8086,http://127.0.0.1:8086,http://localhost:5173,http://localhost:5174,https://taskmanager.sulemankhan.me}
     ports:
       - "${BACKEND_PORT:-9200}:${BACKEND_CONTAINER_PORT:-8000}"
     depends_on:

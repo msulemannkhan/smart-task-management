@@ -162,6 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!response.ok) {
         const errorData = await response.json()
+        // Handle 422 validation errors specifically
+        if (response.status === 422 && errorData.details?.validation_errors) {
+          const fieldErrors = errorData.details.validation_errors
+            .map((err: any) => err.message || err.msg)
+            .join(', ')
+          throw new Error(fieldErrors)
+        }
         throw new Error(errorData.message || errorData.detail || 'Registration failed')
       }
 
