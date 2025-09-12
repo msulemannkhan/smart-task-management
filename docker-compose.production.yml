@@ -1,0 +1,28 @@
+# Production Docker Compose Override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
+
+services:
+  backend:
+    environment:
+      # Production environment
+      - ENVIRONMENT=production
+      - DEBUG=false
+      # Production CORS - only allow your domain
+      - BACKEND_CORS_ORIGINS=https://taskmanager.sulemankhan.me
+      # Use production database (Supabase or your production DB)
+      - DATABASE_URL=${PRODUCTION_DATABASE_URL}
+      - DIRECT_URL=${PRODUCTION_DIRECT_URL}
+
+  frontend:
+    build:
+      args:
+        - VITE_API_URL=https://taskmanager.sulemankhan.me/api
+        - VITE_WS_URL=wss://taskmanager.sulemankhan.me/api/v1/ws
+    environment:
+      - VITE_API_URL=https://taskmanager.sulemankhan.me/api
+      - VITE_WS_URL=wss://taskmanager.sulemankhan.me/api/v1/ws
+
+  # In production, you might want to use an external database
+  # Comment out or remove the local database service
+  # database:
+  #   profiles: ["dev"]  # Only run in dev profile

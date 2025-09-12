@@ -52,25 +52,52 @@ class Settings(BaseSettings):
     # Development
     DEBUG: bool = True
     
-    # CORS
-    BACKEND_CORS_ORIGINS: Union[list[str], str] = [
-        "http://localhost:8086",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:8086",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "https://taskmanager.sulemankhan.me",  # Production domain
-    ]
+    # Environment
+    ENVIRONMENT: str = "development"
+    
+    # CORS - Can be set via env or defaults based on environment
+    BACKEND_CORS_ORIGINS: Optional[Union[list[str], str]] = None
     
     @field_validator('BACKEND_CORS_ORIGINS', mode='before')
     @classmethod
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            return [x.strip() for x in v.split(',')]
+    def parse_cors_origins(cls, v, values):
+        # If CORS origins are explicitly set in env, use them
+        if v:
+            if isinstance(v, str):
+                return [x.strip() for x in v.split(',')]
+            return v
+        
+        # Otherwise, set defaults based on environment
+        # Note: Environment is not available in values during validation,
+        # so we'll handle this in a computed field instead
         return v
+    
+    @computed_field
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        """Get CORS origins based on environment"""
+        if self.BACKEND_CORS_ORIGINS:
+            # Use explicitly set origins
+            if isinstance(self.BACKEND_CORS_ORIGINS, str):
+                return [x.strip() for x in self.BACKEND_CORS_ORIGINS.split(',')]
+            return self.BACKEND_CORS_ORIGINS
+        
+        # Default based on environment
+        if self.ENVIRONMENT == "production":
+            return ["https://taskmanager.sulemankhan.me"]
+        else:
+            # Development defaults
+            return [
+                "http://localhost:8086",
+                "http://localhost:3000", 
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://127.0.0.1:8086",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:5174",
+                "https://taskmanager.sulemankhan.me",  # Allow production URL in dev for testing
+            ]
 
 
 settings = Settings()

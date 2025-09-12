@@ -101,3 +101,4 @@ prod/
 nginx*.conf
 *.nginx
 nginx/
+.claude/
