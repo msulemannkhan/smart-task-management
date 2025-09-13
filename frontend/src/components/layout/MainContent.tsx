@@ -46,7 +46,7 @@ export function MainContent() {
   return (
     <Box h="full" bg="white" display="flex" flexDirection="column">
       {/* Header */}
-      <Box borderBottom="1px" borderBottomColor="gray.200" px={6} py={4}>
+      <Box borderBottom="1px" borderBottomColor="dark.border.subtle" px={6} py={4}>
         {/* Top Header */}
         <HStack justify="space-between" mb={4}>
           <InputGroup maxW="md">

@@ -14,23 +14,12 @@ import {
   CardHeader,
   CardBody,
   Divider,
-  Badge,
   Spinner,
   InputGroup,
   InputRightElement,
   IconButton,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalCloseButton,
-  ModalBody,
-  ModalFooter,
-  useDisclosure,
   useColorModeValue,
   Flex,
-  Grid,
-  GridItem,
   Tabs,
   TabList,
   TabPanels,
@@ -43,696 +32,451 @@ import {
   Icon,
   Progress,
   SimpleGrid,
+  RadioGroup,
+  Stack,
+  Radio,
+  useColorMode,
 } from "@chakra-ui/react";
 import { useState, useEffect } from "react";
 import {
   FiEdit2,
   FiSave,
-  FiX,
-  FiLock,
-  FiEye,
-  FiEyeOff,
-  FiShield,
-  FiUser,
-  FiMail,
-  FiCalendar,
-  FiActivity,
-  FiAward,
   FiCamera,
-  FiCheckCircle,
+  FiCalendar,
   FiClock,
-  FiTrendingUp,
+  FiCheckCircle,
+  FiTarget,
+  FiUser,
+  FiEdit,
+  FiMoon,
+  FiSun,
 } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import useCustomToast from "../hooks/useToast";
 import { useQuery } from "@tanstack/react-query";
 import { TaskService } from "../services/taskService";
 import { ActivityService } from "../services/activityService";
-import { SkeletonLoader } from "../components/ui/SkeletonLoader";
+import { DetailPanelSkeleton } from "../components/ui/SkeletonLoaders";
+import { UserService } from "../services/userService";
+import { useDropzone } from "react-dropzone";
 
 export function Profile() {
-  const { user, token } = useAuth();
+  const { user, token, updateUser } = useAuth();
   const toast = useCustomToast();
+  const { colorMode, toggleColorMode } = useColorMode();
   
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    fullName: user?.user_metadata?.full_name || "",
+    email: user?.email || "",
+    bio: user?.user_metadata?.bio || "",
+    avatar: user?.user_metadata?.avatar_url || "",
+  });
+  
+  const [tempProfileData, setTempProfileData] = useState(profileData);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
   // Theme colors
   const bgColor = useColorModeValue("gray.50", "dark.bg.primary");
   const cardBg = useColorModeValue("white", "dark.bg.tertiary");
-  const borderColor = useColorModeValue("gray.200", "gray.600");
+  const borderColor = useColorModeValue("gray.200", "dark.border.subtle");
   const textMuted = useColorModeValue("gray.600", "gray.400");
-  const statBg = useColorModeValue("white", "dark.bg.secondary");
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    full_name: "",
-    email: "",
-    bio: "",
-  });
 
-  // Password change modal state
-  const {
-    isOpen: isPasswordModalOpen,
-    onOpen: onPasswordModalOpen,
-    onClose: onPasswordModalClose,
-  } = useDisclosure();
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  
   // Fetch user stats
-  const { data: userStats } = useQuery({
-    queryKey: ["userStats"],
+  const { data: taskStats, isLoading: loadingTasks } = useQuery({
+    queryKey: ["userTaskStats", user?.id],
     queryFn: async () => {
-      const stats = await TaskService.getTaskStats(undefined);
-      return stats;
+      const tasks = await TaskService.getAllTasks(token!);
+      const userTasks = tasks.filter((t: any) => t.user_id === user?.id);
+      return {
+        total: userTasks.length,
+        completed: userTasks.filter((t: any) => t.status === "done").length,
+        inProgress: userTasks.filter((t: any) => t.status === "in_progress").length,
+        pending: userTasks.filter((t: any) => t.status === "todo").length,
+      };
     },
-  });
-  
-  // Fetch recent activities
-  const { data: recentActivities } = useQuery({
-    queryKey: ["userActivities"],
-    queryFn: async () => {
-      const response = await ActivityService.getRecentActivities(undefined, 10);
-      return response.activities;
-    },
+    enabled: !!token && !!user,
   });
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        full_name: user.full_name || "",
-        email: user.email || "",
-        bio: user.bio || "",
-      });
-    }
-  }, [user]);
-
-  const handleSave = async () => {
-    setIsLoading(true);
-    try {
-      // TODO: Implement user profile update API call
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Mock API call
-
-      toast.success("Profile updated successfully");
-      setIsEditing(false);
-    } catch (error) {
-      toast.error("Failed to update profile. Please try again later");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePasswordChange = async () => {
-    // Validation
-    if (
-      !passwordData.currentPassword ||
-      !passwordData.newPassword ||
-      !passwordData.confirmPassword
-    ) {
-      toast.error("All fields are required");
-      return;
-    }
-
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error("New passwords do not match");
-      return;
-    }
-
-    if (passwordData.newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters");
-      return;
-    }
-
-    setIsChangingPassword(true);
-    try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL || "http://localhost:9200"
-        }/api/v1/users/change-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            current_password: passwordData.currentPassword,
-            new_password: passwordData.newPassword,
-          }),
+  // Avatar upload with react-dropzone
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp']
+    },
+    maxFiles: 1,
+    maxSize: 5 * 1024 * 1024, // 5MB
+    onDrop: async (acceptedFiles) => {
+      if (acceptedFiles.length === 0) return;
+      
+      const file = acceptedFiles[0];
+      setUploadingAvatar(true);
+      
+      try {
+        const result = await UserService.uploadAvatar(token!, file);
+        const avatarUrl = `http://localhost:8000${result.avatar_url}`;
+        setProfileData(prev => ({ ...prev, avatar: avatarUrl }));
+        setTempProfileData(prev => ({ ...prev, avatar: avatarUrl }));
+        if (user) {
+          updateUser({ ...user, user_metadata: { ...user.user_metadata, avatar_url: avatarUrl } });
         }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Failed to change password");
+        toast.success("Avatar uploaded successfully");
+      } catch (error) {
+        console.error('Avatar upload error:', error);
+        toast.error("Failed to upload avatar");
+      } finally {
+        setUploadingAvatar(false);
       }
+    }
+  });
 
-      toast.success("Password changed successfully");
+  const handleEditProfile = () => {
+    setIsEditingProfile(true);
+    setTempProfileData(profileData);
+  };
 
-      // Reset form and close modal
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
+  const handleSaveProfile = async () => {
+    try {
+      await UserService.updateProfile(token!, {
+        full_name: tempProfileData.fullName,
+        bio: tempProfileData.bio,
       });
-      onPasswordModalClose();
+      
+      setProfileData(tempProfileData);
+      setIsEditingProfile(false);
+      toast.success("Profile updated successfully");
+      
+      if (user) {
+        updateUser({ 
+          ...user, 
+          user_metadata: { 
+            ...user.user_metadata, 
+            full_name: tempProfileData.fullName,
+            bio: tempProfileData.bio
+          } 
+        });
+      }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to change password"
-      );
-    } finally {
-      setIsChangingPassword(false);
+      toast.error("Failed to update profile");
     }
   };
 
-  const handleCancel = () => {
-    if (user) {
-      setFormData({
-        full_name: user.full_name || "",
-        email: user.email || "",
-        bio: user.bio || "",
-      });
-    }
-    setIsEditing(false);
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    setTempProfileData(profileData);
   };
 
-  if (!user) {
-    return (
-      <Box h="full" bg={bgColor} p={6}>
-        <VStack align="center" justify="center" h="full">
-          <Spinner size="lg" color="primary.500" />
-          <Text color={textMuted}>Loading profile...</Text>
-        </VStack>
-      </Box>
-    );
+  const completionRate = taskStats
+    ? Math.round((taskStats.completed / taskStats.total) * 100) || 0
+    : 0;
+
+  const tabIconProps = {
+    mr: 2,
+    boxSize: 4,
+  };
+
+  if (loadingTasks) {
+    return <DetailPanelSkeleton />;
   }
 
   return (
     <Box h="full" bg={bgColor} overflowY="auto">
       <Box maxW="7xl" mx="auto" p={6}>
-        <Grid templateColumns={{ base: "1fr", lg: "300px 1fr" }} gap={6}>
-          {/* Left Sidebar - Profile Overview */}
-          <GridItem>
-            <VStack spacing={6}>
-              {/* Profile Card */}
-              <Card bg={cardBg} borderRadius="xl" overflow="hidden" w="full">
-                <Box
-                  h="100px"
-                  bgGradient="linear(to-r, primary.400, primary.600)"
-                  position="relative"
-                >
-                  <IconButton
-                    aria-label="Change cover"
-                    icon={<FiCamera />}
-                    size="sm"
-                    position="absolute"
-                    top={2}
-                    right={2}
-                    colorScheme="whiteAlpha"
-                  />
-                </Box>
-                <CardBody pt={0}>
-                  <VStack spacing={4}>
-                    <Avatar
-                      size="2xl"
-                      name={user.full_name || user.email}
-                      src={user.avatar_url}
-                      mt="-50px"
-                      border="4px solid"
-                      borderColor={cardBg}
-                      position="relative"
-                    >
-                      <IconButton
-                        aria-label="Change avatar"
-                        icon={<FiCamera />}
-                        size="sm"
-                        position="absolute"
-                        bottom={0}
-                        right={0}
-                        borderRadius="full"
-                        colorScheme="primary"
-                      />
-                    </Avatar>
-                    <VStack spacing={1}>
-                      <Text fontSize="xl" fontWeight="bold">
-                        {user.full_name || "User"}
-                      </Text>
-                      <Text color={textMuted} fontSize="sm">
-                        {user.email}
-                      </Text>
-                      <Badge colorScheme="green" variant="subtle">
-                        <Icon as={FiCheckCircle} mr={1} />
-                        Active
-                      </Badge>
-                    </VStack>
-                    {user.bio && (
-                      <Text fontSize="sm" color={textMuted} textAlign="center">
-                        {user.bio}
-                      </Text>
-                    )}
-                  </VStack>
-                </CardBody>
-              </Card>
-              
-              {/* Stats Card */}
-              <Card bg={cardBg} borderRadius="xl" w="full">
-                <CardBody>
-                  <VStack spacing={4}>
-                    <Text fontWeight="semibold" fontSize="sm" color={textMuted}>
-                      STATISTICS
-                    </Text>
-                    <SimpleGrid columns={2} gap={4} w="full">
-                      <Stat>
-                        <StatLabel fontSize="xs">Total Tasks</StatLabel>
-                        <StatNumber fontSize="lg">
-                          {userStats?.total || 0}
-                        </StatNumber>
-                      </Stat>
-                      <Stat>
-                        <StatLabel fontSize="xs">Completed</StatLabel>
-                        <StatNumber fontSize="lg" color="green.500">
-                          {userStats?.completed || 0}
-                        </StatNumber>
-                      </Stat>
-                      <Stat>
-                        <StatLabel fontSize="xs">In Progress</StatLabel>
-                        <StatNumber fontSize="lg" color="orange.500">
-                          {userStats?.in_progress || 0}
-                        </StatNumber>
-                      </Stat>
-                      <Stat>
-                        <StatLabel fontSize="xs">Completion Rate</StatLabel>
-                        <StatNumber fontSize="lg">
-                          {userStats?.total
-                            ? Math.round(
-                                (userStats.completed / userStats.total) * 100
-                              )
-                            : 0}
-                          %
-                        </StatNumber>
-                      </Stat>
-                    </SimpleGrid>
-                  </VStack>
-                </CardBody>
-              </Card>
-            </VStack>
-          </GridItem>
+        <VStack align="stretch" spacing={6}>
+          {/* Header */}
+          <Box>
+            <Heading size="lg">Account</Heading>
+            <Text color={textMuted} fontSize="sm" mt={1}>
+              Manage your profile and preferences
+            </Text>
+          </Box>
 
-          {/* Right Content - Tabs */}
-          <GridItem>
-            <Card bg={cardBg} borderRadius="xl">
-              <CardBody>
-                <Tabs colorScheme="primary">
-                  <TabList>
-                    <Tab>
-                      <Icon as={FiUser} mr={2} />
-                      Profile
-                    </Tab>
-                    <Tab>
-                      <Icon as={FiShield} mr={2} />
-                      Security
-                    </Tab>
-                    <Tab>
-                      <Icon as={FiActivity} mr={2} />
-                      Activity
-                    </Tab>
-                  </TabList>
-                  
-                  <TabPanels>
-                    {/* Profile Tab */}
-                    <TabPanel>
-                      <VStack spacing={6} align="stretch">
-                        <Flex justify="space-between" align="center">
-                          <Heading size="md">Profile Information</Heading>
-                          {!isEditing ? (
-                            <Button
-                              leftIcon={<FiEdit2 />}
-                              colorScheme="primary"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setIsEditing(true)}
-                            >
-                              Edit Profile
-                            </Button>
-                          ) : (
-                            <HStack spacing={2}>
-                              <Button
-                                leftIcon={<FiSave />}
-                                colorScheme="primary"
-                                size="sm"
-                                onClick={handleSave}
-                                isLoading={isLoading}
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                leftIcon={<FiX />}
-                                variant="outline"
-                                size="sm"
-                                onClick={handleCancel}
-                                isDisabled={isLoading}
-                              >
-                                Cancel
-                              </Button>
-                            </HStack>
-                          )}
-                        </Flex>
-                        
-                        <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-                          <FormControl>
-                            <FormLabel display="flex" alignItems="center">
-                              <Icon as={FiUser} mr={2} />
-                              Full Name
-                            </FormLabel>
-                            <Input
-                              value={formData.full_name}
-                              onChange={(e) =>
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  full_name: e.target.value,
-                                }))
-                              }
-                              isReadOnly={!isEditing}
-                              bg={isEditing ? cardBg : useColorModeValue("gray.50", "dark.bg.secondary")}
-                              borderColor={borderColor}
-                            />
-                          </FormControl>
-                          
-                          <FormControl>
-                            <FormLabel display="flex" alignItems="center">
-                              <Icon as={FiMail} mr={2} />
-                              Email Address
-                            </FormLabel>
-                            <Input
-                              value={formData.email}
-                              onChange={(e) =>
-                                setFormData((prev) => ({ ...prev, email: e.target.value }))
-                              }
-                              isReadOnly={!isEditing}
-                              bg={isEditing ? cardBg : useColorModeValue("gray.50", "dark.bg.secondary")}
-                              borderColor={borderColor}
-                              type="email"
-                            />
-                          </FormControl>
-                        </SimpleGrid>
-                        
-                        <FormControl>
-                          <FormLabel>Bio</FormLabel>
-                          <Textarea
-                            value={formData.bio}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, bio: e.target.value }))
-                            }
-                            isReadOnly={!isEditing}
-                            bg={isEditing ? cardBg : useColorModeValue("gray.50", "dark.bg.secondary")}
-                            borderColor={borderColor}
-                            placeholder="Tell us about yourself..."
-                            rows={4}
-                          />
-                        </FormControl>
-                        
-                        <Divider />
-                        
-                        <VStack spacing={3} align="stretch">
-                          <Text fontWeight="semibold" fontSize="sm" color={textMuted}>
-                            ACCOUNT DETAILS
-                          </Text>
-                          <HStack justify="space-between">
-                            <HStack>
-                              <Icon as={FiCalendar} color={textMuted} />
-                              <Text fontSize="sm">Account Created</Text>
-                            </HStack>
-                            <Text fontSize="sm" color={textMuted}>
-                              {user.created_at
-                                ? new Date(user.created_at).toLocaleDateString()
-                                : "Unknown"}
-                            </Text>
-                          </HStack>
-                          <HStack justify="space-between">
-                            <HStack>
-                              <Icon as={FiClock} color={textMuted} />
-                              <Text fontSize="sm">Last Updated</Text>
-                            </HStack>
-                            <Text fontSize="sm" color={textMuted}>
-                              {user.updated_at
-                                ? new Date(user.updated_at).toLocaleDateString()
-                                : "Unknown"}
-                            </Text>
-                          </HStack>
-                        </VStack>
-                      </VStack>
-                    </TabPanel>
+          {/* Main Content with Tabs */}
+          <Card bg={cardBg} borderRadius="xl" overflow="hidden">
+            <CardBody p={0}>
+              <Tabs orientation="vertical" variant="line" colorScheme="primary">
+                <TabList borderRightWidth="1px" borderColor={borderColor} p={4}>
+                  <Tab justifyContent="flex-start">
+                    <Icon as={FiUser} {...tabIconProps} />
+                    Profile
+                  </Tab>
+                  <Tab justifyContent="flex-start">
+                    <Icon as={FiEdit} {...tabIconProps} />
+                    Appearance
+                  </Tab>
+                </TabList>
 
-                    {/* Security Tab */}
-                    <TabPanel>
-                      <VStack spacing={6} align="stretch">
-                        <Heading size="md">Security Settings</Heading>
-                        
-                        <Box p={4} borderWidth="1px" borderRadius="lg" borderColor={borderColor}>
-                          <HStack justify="space-between">
-                            <VStack align="start" spacing={1}>
-                              <HStack>
-                                <Icon as={FiLock} color="primary.500" />
-                                <Text fontWeight="medium">Password</Text>
-                              </HStack>
-                              <Text fontSize="sm" color={textMuted}>
-                                Secure your account with a strong password
-                              </Text>
-                            </VStack>
-                            <Button
-                              leftIcon={<FiLock />}
-                              size="sm"
-                              variant="outline"
-                              onClick={onPasswordModalOpen}
-                            >
-                              Change Password
-                            </Button>
-                          </HStack>
-                        </Box>
-                        
-                        <Box p={4} borderWidth="1px" borderRadius="lg" borderColor={borderColor}>
-                          <HStack justify="space-between">
-                            <VStack align="start" spacing={1}>
-                              <HStack>
-                                <Icon as={FiShield} color="green.500" />
-                                <Text fontWeight="medium">Two-Factor Authentication</Text>
-                              </HStack>
-                              <Text fontSize="sm" color={textMuted}>
-                                Add an extra layer of security to your account
-                              </Text>
-                            </VStack>
-                            <Badge colorScheme="yellow">Coming Soon</Badge>
-                          </HStack>
-                        </Box>
-                        
-                        <Box p={4} borderWidth="1px" borderRadius="lg" borderColor={borderColor}>
-                          <VStack align="start" spacing={3}>
-                            <HStack>
-                              <Icon as={FiActivity} color="blue.500" />
-                              <Text fontWeight="medium">Login Activity</Text>
-                            </HStack>
-                            <Text fontSize="sm" color={textMuted}>
-                              Monitor recent login attempts and active sessions
-                            </Text>
-                            <Button size="sm" variant="link" colorScheme="primary">
-                              View Activity →
-                            </Button>
-                          </VStack>
-                        </Box>
-                      </VStack>
-                    </TabPanel>
-
-                    {/* Activity Tab */}
-                    <TabPanel>
-                      <VStack spacing={6} align="stretch">
-                        <Heading size="md">Recent Activity</Heading>
-                        
-                        {recentActivities && recentActivities.length > 0 ? (
-                          <VStack spacing={3} align="stretch">
-                            {recentActivities.map((activity) => (
-                              <HStack
-                                key={activity.id}
-                                p={3}
-                                borderWidth="1px"
-                                borderRadius="lg"
-                                borderColor={borderColor}
-                                spacing={3}
-                              >
-                                <Icon
-                                  as={FiActivity}
-                                  color="primary.500"
-                                  boxSize={5}
+                <TabPanels p={6}>
+                  {/* Profile Tab */}
+                  <TabPanel>
+                    <VStack align="stretch" spacing={6}>
+                      {/* Profile Header Card */}
+                      <Card bg={cardBg} borderRadius="xl" overflow="hidden">
+                        <CardHeader
+                          bgGradient="linear(to-r, primary.400, purple.400)"
+                          color="white"
+                          py={8}
+                        >
+                          <VStack spacing={4}>
+                            <Box position="relative">
+                              <Box {...getRootProps()} cursor="pointer">
+                                <input {...getInputProps()} />
+                                <Avatar
+                                  size="2xl"
+                                  name={profileData.fullName || user?.email}
+                                  src={profileData.avatar}
+                                  border="4px solid white"
+                                  position="relative"
                                 />
-                                <VStack align="start" flex={1} spacing={0}>
-                                  <Text fontSize="sm">{activity.description}</Text>
-                                  <Text fontSize="xs" color={textMuted}>
-                                    {new Date(activity.created_at).toLocaleString()}
-                                  </Text>
-                                </VStack>
-                              </HStack>
-                            ))}
+                                {uploadingAvatar && (
+                                  <Box
+                                    position="absolute"
+                                    top="0"
+                                    left="0"
+                                    right="0"
+                                    bottom="0"
+                                    display="flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    bg="blackAlpha.600"
+                                    borderRadius="full"
+                                  >
+                                    <Spinner color="white" />
+                                  </Box>
+                                )}
+                                <IconButton
+                                  aria-label="Upload avatar"
+                                  icon={<FiCamera />}
+                                  size="sm"
+                                  colorScheme="whiteAlpha"
+                                  position="absolute"
+                                  bottom="0"
+                                  right="0"
+                                  borderRadius="full"
+                                />
+                              </Box>
+                              {isDragActive && (
+                                <Text fontSize="sm" mt={2}>Drop image here...</Text>
+                              )}
+                            </Box>
+                            <VStack spacing={0}>
+                              <Heading size="lg">{profileData.fullName || "User"}</Heading>
+                              <Text opacity={0.9}>{profileData.email}</Text>
+                            </VStack>
+                            {!isEditingProfile && (
+                              <Button
+                                leftIcon={<FiEdit2 />}
+                                size="sm"
+                                variant="solid"
+                                bg="whiteAlpha.200"
+                                _hover={{ bg: "whiteAlpha.300" }}
+                                onClick={handleEditProfile}
+                              >
+                                Edit Profile
+                              </Button>
+                            )}
                           </VStack>
-                        ) : (
-                          <Box
-                            p={8}
-                            textAlign="center"
-                            borderWidth="1px"
-                            borderRadius="lg"
-                            borderColor={borderColor}
+                        </CardHeader>
+
+                        <CardBody>
+                          <VStack align="stretch" spacing={4}>
+                            {isEditingProfile ? (
+                              <>
+                                <FormControl>
+                                  <FormLabel>Full Name</FormLabel>
+                                  <Input
+                                    value={tempProfileData.fullName}
+                                    onChange={(e) =>
+                                      setTempProfileData({
+                                        ...tempProfileData,
+                                        fullName: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Enter your full name"
+                                  />
+                                </FormControl>
+
+                                <FormControl>
+                                  <FormLabel>Email</FormLabel>
+                                  <Input value={profileData.email} isDisabled />
+                                </FormControl>
+
+                                <FormControl>
+                                  <FormLabel>Bio</FormLabel>
+                                  <Textarea
+                                    value={tempProfileData.bio}
+                                    onChange={(e) =>
+                                      setTempProfileData({
+                                        ...tempProfileData,
+                                        bio: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Tell us about yourself"
+                                    rows={4}
+                                  />
+                                </FormControl>
+
+                                <HStack justify="flex-end" spacing={2}>
+                                  <Button variant="ghost" onClick={handleCancelEdit}>
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    colorScheme="primary"
+                                    leftIcon={<FiSave />}
+                                    onClick={handleSaveProfile}
+                                  >
+                                    Save Changes
+                                  </Button>
+                                </HStack>
+                              </>
+                            ) : (
+                              <>
+                                <Box>
+                                  <Text fontWeight="semibold" mb={1}>
+                                    Bio
+                                  </Text>
+                                  <Text color={textMuted}>
+                                    {profileData.bio || "No bio added yet"}
+                                  </Text>
+                                </Box>
+
+                                <Divider />
+
+                                <Box>
+                                  <Text fontWeight="semibold" mb={1}>
+                                    Member Since
+                                  </Text>
+                                  <HStack color={textMuted}>
+                                    <Icon as={FiCalendar} />
+                                    <Text>
+                                      {user?.created_at
+                                        ? new Date(user.created_at).toLocaleDateString()
+                                        : "Unknown"}
+                                    </Text>
+                                  </HStack>
+                                </Box>
+                              </>
+                            )}
+                          </VStack>
+                        </CardBody>
+                      </Card>
+
+                      {/* Stats Grid */}
+                      <SimpleGrid columns={{ base: 1, md: 4 }} gap={4}>
+                        <Card bg={cardBg} p={4}>
+                          <Stat>
+                            <StatLabel color={textMuted}>Total Tasks</StatLabel>
+                            <StatNumber>{taskStats?.total || 0}</StatNumber>
+                            <StatHelpText>
+                              <Icon as={FiTarget} mr={1} />
+                              All time
+                            </StatHelpText>
+                          </Stat>
+                        </Card>
+
+                        <Card bg={cardBg} p={4}>
+                          <Stat>
+                            <StatLabel color={textMuted}>Completed</StatLabel>
+                            <StatNumber color="green.500">
+                              {taskStats?.completed || 0}
+                            </StatNumber>
+                            <StatHelpText>
+                              <Icon as={FiCheckCircle} mr={1} />
+                              {completionRate}% rate
+                            </StatHelpText>
+                          </Stat>
+                        </Card>
+
+                        <Card bg={cardBg} p={4}>
+                          <Stat>
+                            <StatLabel color={textMuted}>In Progress</StatLabel>
+                            <StatNumber color="blue.500">
+                              {taskStats?.inProgress || 0}
+                            </StatNumber>
+                            <StatHelpText>
+                              <Icon as={FiClock} mr={1} />
+                              Active now
+                            </StatHelpText>
+                          </Stat>
+                        </Card>
+
+                        <Card bg={cardBg} p={4}>
+                          <Stat>
+                            <StatLabel color={textMuted}>Productivity</StatLabel>
+                            <StatNumber>{completionRate}%</StatNumber>
+                            <Progress
+                              value={completionRate}
+                              colorScheme={completionRate > 70 ? "green" : completionRate > 40 ? "yellow" : "red"}
+                              size="sm"
+                              mt={2}
+                              borderRadius="full"
+                            />
+                          </Stat>
+                        </Card>
+                      </SimpleGrid>
+                    </VStack>
+                  </TabPanel>
+
+                  {/* Appearance Tab */}
+                  <TabPanel>
+                    <VStack align="stretch" spacing={6}>
+                      <Box>
+                        <Heading size="md" mb={4}>
+                          Appearance Settings
+                        </Heading>
+                        <Text fontSize="sm" color={textMuted}>
+                          Customize how TaskHub looks and feels
+                        </Text>
+                      </Box>
+
+                      <VStack align="stretch" spacing={4}>
+                        {/* Theme Mode */}
+                        <Box
+                          p={4}
+                          borderWidth="1px"
+                          borderRadius="lg"
+                          borderColor={borderColor}
+                        >
+                          <HStack justify="space-between" mb={4}>
+                            <VStack align="start" spacing={1}>
+                              <Text fontWeight="medium">Theme Mode</Text>
+                              <Text fontSize="sm" color={textMuted}>
+                                Choose your preferred color scheme
+                              </Text>
+                            </VStack>
+                          </HStack>
+                          <RadioGroup
+                            value={colorMode}
+                            onChange={(value) => {
+                              if (value !== colorMode) {
+                                toggleColorMode();
+                              }
+                            }}
                           >
-                            <Icon as={FiActivity} boxSize={12} color={textMuted} mb={3} />
-                            <Text color={textMuted}>No recent activity</Text>
-                          </Box>
-                        )}
+                            <Stack direction="row" spacing={4}>
+                              <Radio value="light">
+                                <HStack spacing={2}>
+                                  <Icon as={FiSun} />
+                                  <Text>Light</Text>
+                                </HStack>
+                              </Radio>
+                              <Radio value="dark">
+                                <HStack spacing={2}>
+                                  <Icon as={FiMoon} />
+                                  <Text>Dark</Text>
+                                </HStack>
+                              </Radio>
+                            </Stack>
+                          </RadioGroup>
+                        </Box>
                       </VStack>
-                    </TabPanel>
-                  </TabPanels>
-                </Tabs>
-              </CardBody>
-            </Card>
-          </GridItem>
-        </Grid>
+                    </VStack>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
+            </CardBody>
+          </Card>
+        </VStack>
       </Box>
-
-      {/* Change Password Modal */}
-      <Modal
-        isOpen={isPasswordModalOpen}
-        onClose={onPasswordModalClose}
-        size="md"
-      >
-        <ModalOverlay />
-        <ModalContent bg={cardBg}>
-          <ModalHeader>Change Password</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            <VStack spacing={4}>
-              <FormControl isRequired>
-                <FormLabel>Current Password</FormLabel>
-                <InputGroup>
-                  <Input
-                    type={showCurrentPassword ? "text" : "password"}
-                    value={passwordData.currentPassword}
-                    onChange={(e) =>
-                      setPasswordData((prev) => ({
-                        ...prev,
-                        currentPassword: e.target.value,
-                      }))
-                    }
-                    placeholder="Enter current password"
-                    autoComplete="current-password"
-                  />
-                  <InputRightElement>
-                    <IconButton
-                      aria-label={
-                        showCurrentPassword ? "Hide password" : "Show password"
-                      }
-                      icon={showCurrentPassword ? <FiEyeOff /> : <FiEye />}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setShowCurrentPassword(!showCurrentPassword)
-                      }
-                    />
-                  </InputRightElement>
-                </InputGroup>
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel>New Password</FormLabel>
-                <InputGroup>
-                  <Input
-                    type={showNewPassword ? "text" : "password"}
-                    value={passwordData.newPassword}
-                    onChange={(e) =>
-                      setPasswordData((prev) => ({
-                        ...prev,
-                        newPassword: e.target.value,
-                      }))
-                    }
-                    placeholder="Enter new password"
-                    autoComplete="new-password"
-                  />
-                  <InputRightElement>
-                    <IconButton
-                      aria-label={
-                        showNewPassword ? "Hide password" : "Show password"
-                      }
-                      icon={showNewPassword ? <FiEyeOff /> : <FiEye />}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                    />
-                  </InputRightElement>
-                </InputGroup>
-              </FormControl>
-
-              <FormControl isRequired>
-                <FormLabel>Confirm New Password</FormLabel>
-                <InputGroup>
-                  <Input
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={passwordData.confirmPassword}
-                    onChange={(e) =>
-                      setPasswordData((prev) => ({
-                        ...prev,
-                        confirmPassword: e.target.value,
-                      }))
-                    }
-                    placeholder="Confirm new password"
-                    autoComplete="new-password"
-                  />
-                  <InputRightElement>
-                    <IconButton
-                      aria-label={
-                        showConfirmPassword ? "Hide password" : "Show password"
-                      }
-                      icon={showConfirmPassword ? <FiEyeOff /> : <FiEye />}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                    />
-                  </InputRightElement>
-                </InputGroup>
-              </FormControl>
-
-              {passwordData.newPassword &&
-                passwordData.confirmPassword &&
-                passwordData.newPassword !== passwordData.confirmPassword && (
-                  <Text fontSize="sm" color="red.500">
-                    Passwords do not match
-                  </Text>
-                )}
-            </VStack>
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onPasswordModalClose}>
-              Cancel
-            </Button>
-            <Button
-              colorScheme="blue"
-              onClick={handlePasswordChange}
-              isLoading={isChangingPassword}
-              loadingText="Changing..."
-              isDisabled={
-                !passwordData.currentPassword ||
-                !passwordData.newPassword ||
-                !passwordData.confirmPassword ||
-                passwordData.newPassword !== passwordData.confirmPassword
-              }
-            >
-              Change Password
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </Box>
   );
 }

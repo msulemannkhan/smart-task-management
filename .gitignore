@@ -102,3 +102,5 @@ nginx*.conf
 *.nginx
 nginx/
 .claude/
+image/
+documents/

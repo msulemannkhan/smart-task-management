@@ -366,8 +366,20 @@ class CategoryEventLogger:
     """Category event logging utilities"""
     
     @staticmethod
-    def log_category_created(category: Category, user_id: uuid.UUID):
+    async def log_category_created(category: Category, user_id: uuid.UUID, session: AsyncSession):
         """Log category creation"""
+        from app.repositories.activity_repository import ActivityRepository
+        from app.models.database import ActivityActionType
+        activity_repo = ActivityRepository(session)
+        await activity_repo.create(
+            user_id=user_id,
+            action_type=ActivityActionType.CATEGORY_CREATED,
+            entity_type="category",
+            entity_id=category.id,
+            entity_name=category.name,
+            description=f"Created category \"{category.name}\" for organizing tasks",
+            project_id=category.project_id
+        )
         logger.info(f"Category created: {category.id} '{category.name}' by user {user_id}")
     
     @staticmethod

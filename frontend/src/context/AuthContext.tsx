@@ -19,6 +19,7 @@ interface AuthContextType {
   register: (email: string, password: string, fullName?: string) => Promise<void>
   logout: () => void
   refreshToken: () => Promise<void>
+  updateUser: (user: User) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -290,6 +291,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 15 * 60 * 1000) // 15 minutes
   }
 
+  const updateUser = (newUser: User) => {
+    setUser(newUser)
+  }
+
   const value = {
     user,
     token,
@@ -299,6 +304,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     refreshToken,
+    updateUser,
   }
 
   return (

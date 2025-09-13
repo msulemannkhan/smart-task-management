@@ -5,9 +5,11 @@ Includes bulk operations support from the start.
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
 import time
+from pathlib import Path
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
@@ -97,6 +99,11 @@ async def health() -> dict:
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Mount static files for avatar uploads
+uploads_dir = Path("uploads")
+uploads_dir.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Setup comprehensive exception handling - MUST be after router inclusion
 setup_exception_handlers(app)

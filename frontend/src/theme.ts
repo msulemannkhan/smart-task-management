@@ -65,8 +65,13 @@ export const theme = extendTheme({
       bg: {
         primary: "#0d1117", // Very dark background
         secondary: "#161b22", // Slightly lighter
-        tertiary: "#21262d", // Card backgrounds
-        hover: "#30363d" // Hover states
+        tertiary: "#1c2128", // Card backgrounds
+        hover: "#262c36" // Hover states
+      },
+      border: {
+        subtle: "#30363d", // Subtle borders
+        strong: "#484f58", // Stronger borders
+        focus: "#58a6ff" // Focus borders
       }
     }
   },
@@ -90,14 +95,16 @@ export const theme = extendTheme({
       baseStyle: ({ colorMode }) => ({
         container: {
           bg: colorMode === 'dark' ? 'dark.bg.tertiary' : 'white',
-          borderColor: colorMode === 'dark' ? 'gray.600' : 'gray.100',
-          boxShadow: colorMode === 'dark' ? '0 1px 3px 0 rgba(0, 0, 0, 0.3)' : 'sm',
+          borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
+          border: '1px solid',
+          boxShadow: colorMode === 'dark' ? 'none' : 'sm',
           borderRadius: 'xl',
           transition: 'all 0.2s ease',
           _hover: {
             bg: colorMode === 'dark' ? 'dark.bg.hover' : 'gray.50',
             transform: 'translateY(-2px)',
-            boxShadow: colorMode === 'dark' ? '0 4px 12px 0 rgba(0, 0, 0, 0.4)' : 'lg'
+            boxShadow: colorMode === 'dark' ? 'lg' : 'lg',
+            borderColor: colorMode === 'dark' ? 'dark.border.strong' : 'gray.300'
           }
         }
       }),
@@ -105,29 +112,55 @@ export const theme = extendTheme({
         elevated: ({ colorMode }) => ({
           container: {
             bg: colorMode === 'dark' ? 'dark.bg.tertiary' : 'white',
-            borderColor: colorMode === 'dark' ? 'gray.600' : 'gray.100',
-            boxShadow: colorMode === 'dark' ? '0 4px 12px 0 rgba(0, 0, 0, 0.4)' : 'lg',
+            borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
+            boxShadow: colorMode === 'dark' ? 'lg' : 'lg',
             borderRadius: 'xl',
             border: '1px solid',
             _hover: {
               transform: 'translateY(-4px)',
-              boxShadow: colorMode === 'dark' ? '0 8px 24px 0 rgba(0, 0, 0, 0.5)' : 'xl'
+              boxShadow: colorMode === 'dark' ? 'xl' : 'xl',
+              borderColor: colorMode === 'dark' ? 'dark.border.strong' : 'gray.300'
             }
           }
         }),
         interactive: ({ colorMode }) => ({
           container: {
             bg: colorMode === 'dark' ? 'dark.bg.tertiary' : 'white',
-            borderColor: colorMode === 'dark' ? 'gray.600' : 'gray.100',
-            boxShadow: colorMode === 'dark' ? '0 1px 3px 0 rgba(0, 0, 0, 0.3)' : 'sm',
+            borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
+            boxShadow: colorMode === 'dark' ? 'none' : 'sm',
             borderRadius: 'xl',
+            border: '1px solid',
             cursor: 'pointer',
             transition: 'all 0.3s ease',
             _hover: {
               bg: colorMode === 'dark' ? 'dark.bg.hover' : 'gray.50',
               transform: 'translateY(-2px)',
-              boxShadow: colorMode === 'dark' ? '0 4px 12px 0 rgba(0, 0, 0, 0.4)' : 'lg',
-              borderColor: 'primary.300'
+              boxShadow: colorMode === 'dark' ? 'md' : 'lg',
+              borderColor: colorMode === 'dark' ? 'primary.400' : 'primary.300'
+            }
+          }
+        }),
+        dashboard: ({ colorMode }) => ({
+          container: {
+            bg: colorMode === 'dark' ? 'dark.bg.tertiary' : 'white',
+            borderColor: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+            borderRadius: 'xl',
+            background: colorMode === 'dark' 
+              ? 'linear-gradient(135deg, #1c2128 0%, #262c36 100%)'
+              : 'white',
+            position: 'relative',
+            overflow: 'hidden',
+            _before: {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '4px',
+              background: 'linear-gradient(90deg, #3182ce 0%, #805ad5 50%, #d53f8c 100%)',
+              opacity: 0.8
             }
           }
         })
@@ -137,7 +170,7 @@ export const theme = extendTheme({
       baseStyle: ({ colorMode }) => ({
         _dark: {
           bg: 'dark.bg.tertiary',
-          borderColor: 'gray.600'
+          borderColor: 'dark.border.subtle'
         }
       })
     },
@@ -158,9 +191,9 @@ export const theme = extendTheme({
       baseStyle: ({ colorMode }) => ({
         field: {
           bg: colorMode === 'dark' ? 'dark.bg.primary' : 'white',
-          borderColor: colorMode === 'dark' ? 'gray.600' : 'gray.200',
+          borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
           _hover: {
-            borderColor: colorMode === 'dark' ? 'gray.500' : 'gray.400',
+            borderColor: colorMode === 'dark' ? 'dark.border.strong' : 'gray.400',
           },
           _focus: {
             borderColor: 'primary.500',
@@ -173,7 +206,20 @@ export const theme = extendTheme({
       baseStyle: ({ colorMode }) => ({
         field: {
           bg: colorMode === 'dark' ? 'dark.bg.primary' : 'white',
-          borderColor: colorMode === 'dark' ? 'gray.600' : 'gray.200',
+          borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
+        }
+      })
+    },
+    Textarea: {
+      baseStyle: ({ colorMode }) => ({
+        bg: colorMode === 'dark' ? 'dark.bg.primary' : 'white',
+        borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
+        _hover: {
+          borderColor: colorMode === 'dark' ? 'dark.border.strong' : 'gray.400',
+        },
+        _focus: {
+          borderColor: 'primary.500',
+          boxShadow: colorMode === 'dark' ? '0 0 0 1px rgba(132, 84, 255, 0.3)' : '0 0 0 1px rgba(132, 84, 255, 0.2)',
         }
       })
     },
@@ -208,7 +254,7 @@ export const theme = extendTheme({
           }
         }),
         outline: ({ colorMode }) => ({
-          borderColor: colorMode === 'dark' ? 'gray.600' : 'gray.200',
+          borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
           _hover: {
             borderColor: 'primary.500',
             bg: colorMode === 'dark' ? 'dark.bg.hover' : 'primary.50',
@@ -223,7 +269,9 @@ export const theme = extendTheme({
           bg: colorMode === 'dark' ? 'dark.bg.tertiary' : 'white',
           borderRadius: 'lg',
           p: 4,
-          boxShadow: colorMode === 'dark' ? '0 1px 3px 0 rgba(0, 0, 0, 0.3)' : 'sm',
+          border: '1px solid',
+          borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
+          boxShadow: colorMode === 'dark' ? 'none' : 'sm',
         },
         label: {
           color: colorMode === 'dark' ? 'gray.400' : 'gray.600',
@@ -231,6 +279,12 @@ export const theme = extendTheme({
         number: {
           color: colorMode === 'dark' ? 'gray.100' : 'gray.900',
         }
+      })
+    },
+    Divider: {
+      baseStyle: ({ colorMode }) => ({
+        borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
+        opacity: 1
       })
     }
   }

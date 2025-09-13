@@ -5,6 +5,7 @@ Business logic and validation helpers for authentication operations.
 from typing import Dict, Any, Optional
 import logging
 from datetime import datetime
+import uuid
 
 from app.exceptions.base import ValidationError, NotFoundError, BusinessLogicError
 from app.core.auth import SupabaseAuth

@@ -13,7 +13,6 @@ import {
   CardBody,
   Badge,
   IconButton,
-  useToast,
   useColorModeValue,
   Flex,
   Menu,
@@ -22,8 +21,20 @@ import {
   MenuItem,
   Spinner,
   Progress,
+  ButtonGroup,
+  Divider,
 } from "@chakra-ui/react";
-import { FiPlus, FiEdit2, FiTrash2, FiTag, FiMoreVertical, FiActivity, FiCheckCircle } from "react-icons/fi";
+import { 
+  FiPlus, 
+  FiEdit2, 
+  FiTrash2, 
+  FiTag, 
+  FiMoreVertical, 
+  FiActivity, 
+  FiCheckCircle,
+  FiGrid,
+  FiList
+} from "react-icons/fi";
 import { CategoryService } from "../services/categoryService";
 import type { CategoryResponse } from "../services/categoryService";
 import {
@@ -32,14 +43,20 @@ import {
 } from "../services/projectService";
 import { ActivityService, type Activity } from "../services/activityService";
 import { CategoryModal } from "../components/categories/CategoryModal";
+import useCustomToast from "../hooks/useToast";
+import { CategoryCardSkeleton, ListItemSkeleton, GridSkeleton, ListSkeleton } from "../components/ui/SkeletonLoaders";
+
+type ViewMode = 'list' | 'grid';
 
 export function Categories() {
-  const toast = useToast();
+  const toast = useCustomToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list'); // Default to list view
   const cardBg = useColorModeValue("white", "dark.bg.tertiary");
-  const borderColor = useColorModeValue("gray.200", "gray.700");
+  const borderColor = useColorModeValue("gray.200", "dark.border.subtle");
   const textMuted = useColorModeValue("gray.600", "gray.400");
   const bgColor = useColorModeValue("gray.50", "dark.bg.primary");
+  const hoverBg = useColorModeValue("gray.50", "dark.bg.hover");
 
   // Project ID: load first accessible project; fallback to undefined
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
@@ -50,8 +67,6 @@ export function Categories() {
     description: string;
     color: string;
   } | null>(null);
-
-  // No static categories - only show real data from backend
 
   const [categories, setCategories] = useState<CategoryResponse[]>([]);
   const [categoryActivities, setCategoryActivities] = useState<
@@ -69,6 +84,20 @@ export function Categories() {
       } catch {}
     })();
   }, []);
+
+  // Load view preference from localStorage
+  useEffect(() => {
+    const savedView = localStorage.getItem('categoriesViewMode') as ViewMode;
+    if (savedView) {
+      setViewMode(savedView);
+    }
+  }, []);
+
+  // Save view preference
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem('categoriesViewMode', mode);
+  };
 
   // Fetch categories whenever projectId becomes available/changes
   useEffect(() => {
@@ -147,19 +176,9 @@ export function Categories() {
       try {
         await CategoryService.deleteCategory(categoryId);
         await fetchCategories(projectId);
-        toast({
-          title: "Category deleted",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
+        toast.success("Category deleted successfully");
       } catch (error) {
-        toast({
-          title: "Failed to delete category",
-          status: "error",
-          duration: 3000,
-          isClosable: true,
-        });
+        toast.error("Failed to delete category");
       }
     }
   };
@@ -168,28 +187,282 @@ export function Categories() {
     fetchCategories(projectId);
   };
 
-  // Use hex color directly or provide a fallback
-  const getCategoryColor = (hexColor: string) => {
-    // Return the hex color directly, or a default if not provided
-    return hexColor || "#718096"; // Default to gray if no color
-  };
-
   const getCompletionPercentage = (completed: number, total: number) => {
     return total > 0 ? Math.round((completed / total) * 100) : 0;
   };
 
-  if (isLoading && categories.length === 0) {
-    return (
-      <Box h="full" p={8}>
-        <VStack align="center" justify="center" h="full">
-          <Spinner size="lg" color="primary.500" thickness="3px" />
-          <Text color={textMuted} fontSize="sm">
-            Loading categories...
-          </Text>
-        </VStack>
-      </Box>
+  const CategoryListItem = ({ category }: { category: CategoryResponse }) => {
+    const completionRate = getCompletionPercentage(
+      category.completed_tasks || 0,
+      category.task_count || 0
     );
-  }
+
+    return (
+      <Card
+        bg={cardBg}
+        borderRadius="lg"
+        border="1px solid"
+        borderColor={borderColor}
+        overflow="hidden"
+        transition="all 0.2s"
+        _hover={{
+          bg: hoverBg,
+          transform: "translateY(-1px)",
+          boxShadow: "md",
+        }}
+      >
+        <CardBody p={4}>
+          <HStack spacing={4} align="center">
+            {/* Color indicator */}
+            <Box
+              w={3}
+              h={12}
+              bg={category.color || "gray.400"}
+              borderRadius="full"
+            />
+
+            {/* Category info */}
+            <VStack align="start" spacing={1} flex={1}>
+              <Text fontSize="md" fontWeight="semibold">
+                {category.name}
+              </Text>
+              <Text fontSize="sm" color={textMuted} noOfLines={1}>
+                {category.description || "No description"}
+              </Text>
+            </VStack>
+
+            {/* Stats */}
+            <HStack spacing={6} divider={<Divider orientation="vertical" h={8} />}>
+              <VStack spacing={0}>
+                <Text fontSize="lg" fontWeight="bold">
+                  {category.task_count || 0}
+                </Text>
+                <Text fontSize="xs" color={textMuted}>
+                  Tasks
+                </Text>
+              </VStack>
+              <VStack spacing={0}>
+                <Text fontSize="lg" fontWeight="bold" color="green.500">
+                  {category.completed_tasks || 0}
+                </Text>
+                <Text fontSize="xs" color={textMuted}>
+                  Done
+                </Text>
+              </VStack>
+              <VStack spacing={0}>
+                <Text fontSize="lg" fontWeight="bold">
+                  {completionRate}%
+                </Text>
+                <Text fontSize="xs" color={textMuted}>
+                  Progress
+                </Text>
+              </VStack>
+            </HStack>
+
+            {/* Progress bar */}
+            <Box w="120px">
+              <Progress
+                value={completionRate}
+                size="sm"
+                borderRadius="full"
+                colorScheme={
+                  completionRate >= 75
+                    ? "green"
+                    : completionRate >= 50
+                    ? "yellow"
+                    : "gray"
+                }
+              />
+            </Box>
+
+            {/* Actions menu */}
+            <Menu>
+              <MenuButton
+                as={IconButton}
+                icon={<FiMoreVertical />}
+                variant="ghost"
+                size="sm"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <MenuList>
+                <MenuItem
+                  icon={<FiEdit2 />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditCategory(category.id);
+                  }}
+                >
+                  Edit Category
+                </MenuItem>
+                <MenuItem
+                  icon={<FiTrash2 />}
+                  color="red.500"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteCategory(category.id);
+                  }}
+                >
+                  Delete Category
+                </MenuItem>
+              </MenuList>
+            </Menu>
+          </HStack>
+        </CardBody>
+      </Card>
+    );
+  };
+
+  const CategoryGridCard = ({ category }: { category: CategoryResponse }) => {
+    const completionRate = getCompletionPercentage(
+      category.completed_tasks || 0,
+      category.task_count || 0
+    );
+
+    return (
+      <Card
+        bg={cardBg}
+        borderRadius="xl"
+        border="1px solid"
+        borderColor={borderColor}
+        overflow="hidden"
+        position="relative"
+        transition="all 0.2s"
+        _hover={{
+          transform: "translateY(-4px)",
+          boxShadow: "lg",
+          cursor: "pointer",
+        }}
+      >
+        {/* Color bar at top */}
+        <Box h="4px" bg={category.color || "gray.400"} />
+        
+        <CardBody p={5}>
+          <VStack align="stretch" spacing={4}>
+            {/* Header with title and menu */}
+            <Flex justify="space-between" align="start">
+              <VStack align="start" spacing={1} flex={1}>
+                <Text
+                  fontSize="lg"
+                  fontWeight="semibold"
+                  noOfLines={1}
+                >
+                  {category.name}
+                </Text>
+                <Text
+                  fontSize="xs"
+                  color={textMuted}
+                  noOfLines={2}
+                  minH="2rem"
+                >
+                  {category.description || "No description"}
+                </Text>
+              </VStack>
+              
+              <Menu>
+                <MenuButton
+                  as={IconButton}
+                  icon={<FiMoreVertical />}
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <MenuList>
+                  <MenuItem
+                    icon={<FiEdit2 />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditCategory(category.id);
+                    }}
+                  >
+                    Edit Category
+                  </MenuItem>
+                  <MenuItem
+                    icon={<FiTrash2 />}
+                    color="red.500"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteCategory(category.id);
+                    }}
+                  >
+                    Delete Category
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+            </Flex>
+
+            {/* Task Stats */}
+            <HStack justify="space-between" align="center">
+              <HStack spacing={4}>
+                <VStack align="start" spacing={0}>
+                  <Text fontSize="2xl" fontWeight="bold">
+                    {category.task_count || 0}
+                  </Text>
+                  <Text fontSize="xs" color={textMuted}>
+                    Tasks
+                  </Text>
+                </VStack>
+                <VStack align="start" spacing={0}>
+                  <Text fontSize="2xl" fontWeight="bold" color="green.500">
+                    {category.completed_tasks || 0}
+                  </Text>
+                  <Text fontSize="xs" color={textMuted}>
+                    Done
+                  </Text>
+                </VStack>
+              </HStack>
+            </HStack>
+
+            {/* Progress Bar */}
+            <Box>
+              <HStack justify="space-between" mb={1}>
+                <Text fontSize="xs" color={textMuted}>
+                  Progress
+                </Text>
+                <Text fontSize="xs" fontWeight="medium">
+                  {completionRate}%
+                </Text>
+              </HStack>
+              <Progress
+                value={completionRate}
+                size="sm"
+                borderRadius="full"
+                colorScheme={
+                  completionRate >= 75
+                    ? "green"
+                    : completionRate >= 50
+                    ? "yellow"
+                    : "gray"
+                }
+              />
+            </Box>
+
+            {/* Bottom Stats */}
+            <HStack
+              justify="space-between"
+              pt={3}
+              borderTop="1px"
+              borderColor={borderColor}
+            >
+              <HStack spacing={1}>
+                <Icon as={FiActivity} boxSize={3} color={textMuted} />
+                <Text fontSize="xs" color={textMuted}>
+                  {categoryActivities[category.id]?.length || 0} activities
+                </Text>
+              </HStack>
+              {completionRate === 100 && (
+                <HStack spacing={1}>
+                  <Icon as={FiCheckCircle} boxSize={3} color="green.500" />
+                  <Text fontSize="xs" color="green.500" fontWeight="medium">
+                    Complete
+                  </Text>
+                </HStack>
+              )}
+            </HStack>
+          </VStack>
+        </CardBody>
+      </Card>
+    );
+  };
 
   return (
     <>
@@ -203,19 +476,48 @@ export function Categories() {
                 Organize your tasks with categories
               </Text>
             </Box>
-            <Button
-              colorScheme="primary"
-              leftIcon={<FiPlus />}
-              onClick={handleCreateCategory}
-              size="md"
-              borderRadius="lg"
-            >
-              New Category
-            </Button>
+            <HStack spacing={3}>
+              {/* View mode toggle */}
+              <ButtonGroup size="sm" isAttached variant="outline">
+                <IconButton
+                  aria-label="List view"
+                  icon={<FiList />}
+                  isActive={viewMode === 'list'}
+                  onClick={() => handleViewModeChange('list')}
+                  bg={viewMode === 'list' ? useColorModeValue('primary.50', 'primary.900') : undefined}
+                  color={viewMode === 'list' ? 'primary.500' : undefined}
+                />
+                <IconButton
+                  aria-label="Grid view"
+                  icon={<FiGrid />}
+                  isActive={viewMode === 'grid'}
+                  onClick={() => handleViewModeChange('grid')}
+                  bg={viewMode === 'grid' ? useColorModeValue('primary.50', 'primary.900') : undefined}
+                  color={viewMode === 'grid' ? 'primary.500' : undefined}
+                />
+              </ButtonGroup>
+
+              <Button
+                colorScheme="primary"
+                leftIcon={<FiPlus />}
+                onClick={handleCreateCategory}
+                size="md"
+                borderRadius="lg"
+              >
+                New Category
+              </Button>
+            </HStack>
           </HStack>
 
-          {/* Categories Grid */}
-          {categories.length === 0 ? (
+          {/* Loading State */}
+          {isLoading && categories.length === 0 ? (
+            viewMode === 'grid' ? (
+              <GridSkeleton items={6} columns={3} component={CategoryCardSkeleton} />
+            ) : (
+              <ListSkeleton items={5} component={ListItemSkeleton} />
+            )
+          ) : categories.length === 0 ? (
+            /* Empty State */
             <Box
               textAlign="center"
               py={12}
@@ -241,159 +543,20 @@ export function Categories() {
               </Button>
             </Box>
           ) : (
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} spacing={5}>
-            {categories.map((category) => {
-              const completionRate = getCompletionPercentage(
-                category.completed_tasks || 0,
-                category.task_count || 0
-              );
-              
-              return (
-              <Card
-                key={category.id}
-                bg={cardBg}
-                borderRadius="xl"
-                boxShadow="sm"
-                overflow="hidden"
-                position="relative"
-                transition="all 0.2s"
-                _hover={{
-                  transform: "translateY(-4px)",
-                  boxShadow: "lg",
-                  cursor: "pointer",
-                }}
-              >
-                {/* Color bar at top */}
-                <Box h="4px" bg={category.color || "gray.400"} />
-                
-                <CardBody p={5}>
-                  <VStack align="stretch" spacing={4}>
-                    {/* Header with title and menu */}
-                    <Flex justify="space-between" align="start">
-                      <VStack align="start" spacing={1} flex={1}>
-                        <Text
-                          fontSize="lg"
-                          fontWeight="semibold"
-                          noOfLines={1}
-                        >
-                          {category.name}
-                        </Text>
-                        <Text
-                          fontSize="xs"
-                          color={textMuted}
-                          noOfLines={2}
-                          minH="2rem"
-                        >
-                          {category.description || "No description"}
-                        </Text>
-                      </VStack>
-                      
-                      <Menu>
-                        <MenuButton
-                          as={IconButton}
-                          icon={<FiMoreVertical />}
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <MenuList>
-                          <MenuItem
-                            icon={<FiEdit2 />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditCategory(category.id);
-                            }}
-                          >
-                            Edit Category
-                          </MenuItem>
-                          <MenuItem
-                            icon={<FiTrash2 />}
-                            color="red.500"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCategory(category.id);
-                            }}
-                          >
-                            Delete Category
-                          </MenuItem>
-                        </MenuList>
-                      </Menu>
-                    </Flex>
-
-                    {/* Task Stats */}
-                    <HStack justify="space-between" align="center">
-                      <HStack spacing={4}>
-                        <VStack align="start" spacing={0}>
-                          <Text fontSize="2xl" fontWeight="bold">
-                            {category.task_count || 0}
-                          </Text>
-                          <Text fontSize="xs" color={textMuted}>
-                            Tasks
-                          </Text>
-                        </VStack>
-                        <VStack align="start" spacing={0}>
-                          <Text fontSize="2xl" fontWeight="bold" color="green.500">
-                            {category.completed_tasks || 0}
-                          </Text>
-                          <Text fontSize="xs" color={textMuted}>
-                            Done
-                          </Text>
-                        </VStack>
-                      </HStack>
-                    </HStack>
-
-                    {/* Progress Bar */}
-                    <Box>
-                      <HStack justify="space-between" mb={1}>
-                        <Text fontSize="xs" color={textMuted}>
-                          Progress
-                        </Text>
-                        <Text fontSize="xs" fontWeight="medium">
-                          {completionRate}%
-                        </Text>
-                      </HStack>
-                      <Progress
-                        value={completionRate}
-                        size="sm"
-                        borderRadius="full"
-                        colorScheme={
-                          completionRate >= 75
-                            ? "green"
-                            : completionRate >= 50
-                            ? "yellow"
-                            : "gray"
-                        }
-                      />
-                    </Box>
-
-                    {/* Bottom Stats */}
-                    <HStack
-                      justify="space-between"
-                      pt={3}
-                      borderTop="1px"
-                      borderColor={borderColor}
-                    >
-                      <HStack spacing={1}>
-                        <Icon as={FiActivity} boxSize={3} color={textMuted} />
-                        <Text fontSize="xs" color={textMuted}>
-                          {categoryActivities[category.id]?.length || 0} activities
-                        </Text>
-                      </HStack>
-                      {completionRate === 100 && (
-                        <HStack spacing={1}>
-                          <Icon as={FiCheckCircle} boxSize={3} color="green.500" />
-                          <Text fontSize="xs" color="green.500" fontWeight="medium">
-                            Complete
-                          </Text>
-                        </HStack>
-                      )}
-                    </HStack>
-                  </VStack>
-                </CardBody>
-              </Card>
-              );
-            })}
-          </SimpleGrid>
+            /* Categories Display */
+            viewMode === 'grid' ? (
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} spacing={5}>
+                {categories.map((category) => (
+                  <CategoryGridCard key={category.id} category={category} />
+                ))}
+              </SimpleGrid>
+            ) : (
+              <VStack align="stretch" spacing={3}>
+                {categories.map((category) => (
+                  <CategoryListItem key={category.id} category={category} />
+                ))}
+              </VStack>
+            )
           )}
         </VStack>
       </Box>

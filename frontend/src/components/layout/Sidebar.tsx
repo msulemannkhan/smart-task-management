@@ -85,14 +85,22 @@ function SidebarItem({
       fontWeight="medium"
       fontSize="sm"
       color={isActive ? "primary.600" : { base: "gray.700", _dark: "gray.300" }}
-      bg={isActive ? { base: "primary.50", _dark: "primary.900" } : "transparent"}
+      bg={
+        isActive ? { base: "primary.50", _dark: "primary.900" } : "transparent"
+      }
       _hover={{
-        bg: isActive ? { base: "primary.50", _dark: "primary.900" } : { base: "gray.100", _dark: "gray.700" },
+        bg: isActive
+          ? { base: "primary.50", _dark: "primary.900" }
+          : { base: "gray.100", _dark: "gray.700" },
       }}
       onClick={onClick}
       title={isCollapsed ? label : undefined}
     >
-      <HStack spacing={3} w="full" justify={isCollapsed ? "center" : "flex-start"}>
+      <HStack
+        spacing={3}
+        w="full"
+        justify={isCollapsed ? "center" : "flex-start"}
+      >
         <Icon as={icon} boxSize={4} />
         {!isCollapsed && (
           <>
@@ -188,8 +196,8 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       w={{ base: "full", lg: isCollapsed ? "60px" : "280px" }}
       bg="white"
       _dark={{ bg: "dark.bg.secondary" }}
-      borderRight={{ base: "none", lg: "1px" }}
-      borderRightColor={{ base: "gray.200", _dark: "gray.700" }}
+      // borderRight={{ base: "none", lg: "1px" }}
+      borderRightColor="dark.border.subtle"
       h="100vh"
       position={{ base: "relative", lg: "sticky" }}
       top="0"
@@ -199,31 +207,24 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       transition="width 0.3s"
     >
       {/* Logo/Brand */}
-      <HStack justify={isCollapsed ? "center" : "space-between"} p={isCollapsed ? 3 : 6} position="relative">
+      <HStack
+        justify={isCollapsed ? "center" : "space-between"}
+        p={isCollapsed ? 3 : 6}
+        position="relative"
+      >
         {!isCollapsed && (
           <Text fontSize="xl" fontWeight="bold">
             TaskHub
           </Text>
         )}
-        <HStack spacing={2}>
-          {!isCollapsed && (
-            <IconButton
-              aria-label="Toggle theme"
-              icon={<Icon as={colorMode === "light" ? FiMoon : FiSun} />}
-              size="sm"
-              variant="ghost"
-              onClick={toggleColorMode}
-            />
-          )}
-          <IconButton
-            aria-label="Toggle sidebar"
-            icon={<Icon as={isCollapsed ? FiChevronRight : FiChevronLeft} />}
-            size="sm"
-            variant="ghost"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            position={isCollapsed ? "relative" : "relative"}
-          />
-        </HStack>
+        <IconButton
+          aria-label="Toggle sidebar"
+          icon={<Icon as={isCollapsed ? FiChevronRight : FiChevronLeft} />}
+          size="sm"
+          variant="ghost"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          position={isCollapsed ? "relative" : "relative"}
+        />
       </HStack>
 
       {/* Main Navigation */}
@@ -264,44 +265,44 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             </Button>
           </HStack>
 
-        <VStack spacing={2} align="stretch">
-          {isLoadingProjects ? (
-            <Text fontSize="sm" color="gray.500" px={3} py={2}>
-              Loading projects...
-            </Text>
-          ) : projects.length > 0 ? (
-            projects.map((project) => (
-              <HStack
-                key={project.id}
-                px={3}
-                py={2}
-                spacing={3}
-                cursor="pointer"
-                _hover={{ bg: { base: "gray.50", _dark: "gray.700" } }}
-                borderRadius="md"
-                onClick={() => navigate(`/projects/${project.id}`)}
-              >
-                <Box
-                  w={3}
-                  h={3}
-                  bg={project.color}
-                  borderRadius="full"
-                  flexShrink={0}
-                />
-                <Text
-                  fontSize="sm"
-                  color={{ base: "gray.700", _dark: "gray.300" }}
-                  noOfLines={1}
+          <VStack spacing={2} align="stretch">
+            {isLoadingProjects ? (
+              <Text fontSize="sm" color="gray.500" px={3} py={2}>
+                Loading projects...
+              </Text>
+            ) : projects.length > 0 ? (
+              projects.map((project) => (
+                <HStack
+                  key={project.id}
+                  px={3}
+                  py={2}
+                  spacing={3}
+                  cursor="pointer"
+                  _hover={{ bg: { base: "gray.50", _dark: "gray.700" } }}
+                  borderRadius="md"
+                  onClick={() => navigate(`/projects/${project.id}`)}
                 >
-                  {project.name}
-                </Text>
-              </HStack>
-            ))
-          ) : (
-            <Text fontSize="sm" color="gray.500" px={3} py={2}>
-              No projects yet
-            </Text>
-          )}
+                  <Box
+                    w={3}
+                    h={3}
+                    bg={project.color}
+                    borderRadius="full"
+                    flexShrink={0}
+                  />
+                  <Text
+                    fontSize="sm"
+                    color={{ base: "gray.700", _dark: "gray.300" }}
+                    noOfLines={1}
+                  >
+                    {project.name}
+                  </Text>
+                </HStack>
+              ))
+            ) : (
+              <Text fontSize="sm" color="gray.500" px={3} py={2}>
+                No projects yet
+              </Text>
+            )}
           </VStack>
         </Box>
       )}
@@ -311,7 +312,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         mt="auto"
         p={isCollapsed ? 2 : 4}
         borderTop="1px"
-        borderTopColor={{ base: "gray.100", _dark: "gray.700" }}
+        borderTopColor="dark.border.subtle"
       >
         <Menu placement="top-start">
           <MenuButton
@@ -349,15 +350,6 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               onClick={() => navigate("/settings")}
             >
               Settings
-            </MenuItem>
-            <MenuItem
-              icon={colorMode === "light" ? <FiMoon /> : <FiSun />}
-              onClick={toggleColorMode}
-            >
-              {colorMode === "light" ? "Dark Mode" : "Light Mode"}
-            </MenuItem>
-            <MenuItem icon={<FiHelpCircle />} onClick={() => navigate("/help")}>
-              Help & Support
             </MenuItem>
             <MenuDivider />
             <MenuItem icon={<FiLogOut />} onClick={handleLogout}>

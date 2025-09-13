@@ -55,8 +55,9 @@ const PRIORITY_COLORS = {
 };
 
 export function TaskStatusPieChart({ tasks }: ChartProps) {
-  const textColor = useColorModeValue("gray.700", "gray.200");
-  const bgColor = useColorModeValue("white", "gray.800");
+  const textColor = useColorModeValue("gray.700", "gray.100");
+  const bgColor = useColorModeValue("white", "dark.bg.tertiary");
+  const borderColor = useColorModeValue("gray.200", "dark.border.subtle");
   
   // Prepare data for pie chart
   const statusData = Object.values(TaskStatus).map(status => {
@@ -71,7 +72,7 @@ export function TaskStatusPieChart({ tasks }: ChartProps) {
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload[0]) {
       return (
-        <Box bg={bgColor} p={2} borderRadius="md" shadow="lg" border="1px" borderColor="gray.200">
+        <Box bg={bgColor} p={2} borderRadius="md" shadow="lg" border="1px" borderColor={borderColor}>
           <Text fontSize="sm" fontWeight="bold">{payload[0].name}</Text>
           <Text fontSize="sm">{payload[0].value} tasks</Text>
         </Box>
@@ -81,7 +82,29 @@ export function TaskStatusPieChart({ tasks }: ChartProps) {
   };
 
   return (
-    <Box bg={bgColor} p={6} borderRadius="xl" shadow="md">
+    <Box 
+      bg={bgColor} 
+      p={6} 
+      borderRadius="xl" 
+      border="none"
+      boxShadow="none"
+      background={useColorModeValue(
+        "white",
+        "linear-gradient(135deg, #1c2128 0%, #262c36 100%)"
+      )}
+      position="relative"
+      overflow="hidden"
+      _before={{
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '4px',
+        background: 'linear-gradient(90deg, #3182ce 0%, #805ad5 50%, #d53f8c 100%)',
+        opacity: 0.8
+      }}
+    >
       <Text fontSize="md" fontWeight="semibold" mb={4} color={textColor}>
         Task Status Distribution
       </Text>
@@ -109,9 +132,9 @@ export function TaskStatusPieChart({ tasks }: ChartProps) {
 }
 
 export function TaskCompletionTrend({ tasks }: ChartProps) {
-  const textColor = useColorModeValue("gray.700", "gray.200");
-  const bgColor = useColorModeValue("white", "gray.800");
-  const gridColor = useColorModeValue("#e2e8f0", "#2d3748");
+  const textColor = useColorModeValue("gray.700", "gray.100");
+  const bgColor = useColorModeValue("white", "dark.bg.tertiary");
+  const gridColor = useColorModeValue("#e2e8f0", "#30363d");
   
   // Generate last 7 days data
   const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -133,7 +156,29 @@ export function TaskCompletionTrend({ tasks }: ChartProps) {
   });
 
   return (
-    <Box bg={bgColor} p={6} borderRadius="xl" shadow="md">
+    <Box 
+      bg={bgColor} 
+      p={6} 
+      borderRadius="xl" 
+      border="none"
+      boxShadow="none"
+      background={useColorModeValue(
+        "white",
+        "linear-gradient(135deg, #1c2128 0%, #262c36 100%)"
+      )}
+      position="relative"
+      overflow="hidden"
+      _before={{
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '4px',
+        background: 'linear-gradient(90deg, #48bb78 0%, #38bdf8 50%, #f6ad55 100%)',
+        opacity: 0.8
+      }}
+    >
       <Text fontSize="md" fontWeight="semibold" mb={4} color={textColor}>
         Task Activity Trend (Last 7 Days)
       </Text>
@@ -176,9 +221,9 @@ export function TaskCompletionTrend({ tasks }: ChartProps) {
 }
 
 export function PriorityBarChart({ tasks }: ChartProps) {
-  const textColor = useColorModeValue("gray.700", "gray.200");
-  const bgColor = useColorModeValue("white", "gray.800");
-  const gridColor = useColorModeValue("#e2e8f0", "#2d3748");
+  const textColor = useColorModeValue("gray.700", "gray.100");
+  const bgColor = useColorModeValue("white", "dark.bg.tertiary");
+  const gridColor = useColorModeValue("#e2e8f0", "#30363d");
   
   const priorityData = Object.values(TaskPriority).map(priority => ({
     name: priority.charAt(0) + priority.slice(1).toLowerCase(),
@@ -187,7 +232,29 @@ export function PriorityBarChart({ tasks }: ChartProps) {
   }));
 
   return (
-    <Box bg={bgColor} p={6} borderRadius="xl" shadow="md">
+    <Box 
+      bg={bgColor} 
+      p={6} 
+      borderRadius="xl" 
+      border="none"
+      boxShadow="none"
+      background={useColorModeValue(
+        "white",
+        "linear-gradient(135deg, #1c2128 0%, #262c36 100%)"
+      )}
+      position="relative"
+      overflow="hidden"
+      _before={{
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '4px',
+        background: 'linear-gradient(90deg, #e53e3e 0%, #f6ad55 50%, #3182ce 100%)',
+        opacity: 0.8
+      }}
+    >
       <Text fontSize="md" fontWeight="semibold" mb={4} color={textColor}>
         Task Priority Distribution
       </Text>
@@ -216,9 +283,9 @@ export function PriorityBarChart({ tasks }: ChartProps) {
 }
 
 export function TeamPerformanceRadar({ tasks }: ChartProps) {
-  const textColor = useColorModeValue("gray.700", "gray.200");
-  const bgColor = useColorModeValue("white", "gray.800");
-  const gridColor = useColorModeValue("#e2e8f0", "#2d3748");
+  const textColor = useColorModeValue("gray.700", "gray.100");
+  const bgColor = useColorModeValue("white", "dark.bg.tertiary");
+  const gridColor = useColorModeValue("#e2e8f0", "#30363d");
   
   // Calculate performance metrics
   const totalTasks = tasks.length;
@@ -258,7 +325,29 @@ export function TeamPerformanceRadar({ tasks }: ChartProps) {
   ];
 
   return (
-    <Box bg={bgColor} p={6} borderRadius="xl" shadow="md">
+    <Box 
+      bg={bgColor} 
+      p={6} 
+      borderRadius="xl" 
+      border="none"
+      boxShadow="none"
+      background={useColorModeValue(
+        "white",
+        "linear-gradient(135deg, #1c2128 0%, #262c36 100%)"
+      )}
+      position="relative"
+      overflow="hidden"
+      _before={{
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '4px',
+        background: 'linear-gradient(90deg, #805ad5 0%, #3182ce 50%, #48bb78 100%)',
+        opacity: 0.8
+      }}
+    >
       <Text fontSize="md" fontWeight="semibold" mb={4} color={textColor}>
         Performance Metrics
       </Text>

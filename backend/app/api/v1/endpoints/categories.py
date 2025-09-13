@@ -107,7 +107,7 @@ async def create_category(
     )
     
     # Log the creation event
-    CategoryEventLogger.log_category_created(category, current_user.id)
+    await CategoryEventLogger.log_category_created(category, current_user.id, session)
     
     # Get task count (will be 0 for new category)
     task_count = await CategoryQueryHelper.get_task_count_for_category(category.id, session)

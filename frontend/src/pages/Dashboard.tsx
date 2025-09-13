@@ -116,12 +116,12 @@ export function Dashboard() {
   const toast = useCustomToast();
 
   // Theme colors
-  const bgColor = useColorModeValue("gray.50", "gray.900");
-  const cardBg = useColorModeValue("white", "gray.800");
+  const bgColor = useColorModeValue("gray.50", "dark.bg.primary");
+  const cardBg = useColorModeValue("white", "dark.bg.tertiary");
   const textColor = useColorModeValue("gray.900", "gray.100");
   const textMuted = useColorModeValue("gray.600", "gray.400");
-  const borderColor = useColorModeValue("gray.200", "dark.border.strong");
-  const hoverBg = useColorModeValue("gray.50", "gray.700");
+  const borderColor = useColorModeValue("gray.200", "dark.border.subtle");
+  const hoverBg = useColorModeValue("gray.50", "dark.bg.hover");
 
   // Fetch all data needed for dashboard
   const {
@@ -371,7 +371,7 @@ export function Dashboard() {
           <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
             {/* Projects Overview */}
             <MotionBox variants={itemVariants} gridColumn={{ lg: "span 2" }}>
-              <Card bg={cardBg} shadow="md" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
+              <Card bg={cardBg} shadow="md" borderRadius="xl" border="1px solid" borderColor={borderColor}>
                 <CardBody>
                   <Flex justify="space-between" align="center" mb={4}>
                     <HStack spacing={2}>
@@ -468,7 +468,7 @@ export function Dashboard() {
 
             {/* Recent Activity */}
             <MotionBox variants={itemVariants}>
-              <Card bg={cardBg} shadow="md" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
+              <Card bg={cardBg} shadow="md" borderRadius="xl" border="1px solid" borderColor={borderColor}>
                 <CardBody>
                   <Flex justify="space-between" align="center" mb={4}>
                     <HStack spacing={2}>
@@ -538,7 +538,7 @@ export function Dashboard() {
             {/* Upcoming Deadlines */}
             {upcomingTasks.length > 0 && (
               <MotionBox variants={itemVariants} gridColumn={{ lg: "span 2" }}>
-                <Card bg={cardBg} shadow="md" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
+                <Card bg={cardBg} shadow="md" borderRadius="xl" border="1px solid" borderColor={borderColor}>
                   <CardBody>
                     <HStack spacing={2} mb={4}>
                       <Icon as={FiCalendar} color="orange.500" />
@@ -589,7 +589,7 @@ export function Dashboard() {
             {/* High Priority Tasks */}
             {highPriorityTasks.length > 0 && (
               <MotionBox variants={itemVariants}>
-                <Card bg={cardBg} shadow="md" borderRadius="xl" borderWidth="1px" borderColor={borderColor}>
+                <Card bg={cardBg} shadow="md" borderRadius="xl" border="1px solid" borderColor={borderColor}>
                   <CardBody>
                     <HStack spacing={2} mb={4}>
                       <Icon as={FiAlertCircle} color="red.500" />

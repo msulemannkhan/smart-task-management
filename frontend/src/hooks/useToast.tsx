@@ -1,74 +1,39 @@
-import { useToast as useChakraToast } from "@chakra-ui/react";
-import { CheckCircleIcon, WarningIcon, InfoIcon } from "@chakra-ui/icons";
-import { MdError } from "react-icons/md";
+import toast, { Toaster } from 'react-hot-toast';
 
-// Define UseToastOptions interface locally since it's not exported from Chakra UI
-interface UseToastOptions {
-  title?: string;
-  description?: string;
-  status?: "success" | "error" | "warning" | "info" | "loading";
-  duration?: number | null;
-  isClosable?: boolean;
-  position?:
-    | "top"
-    | "top-left"
-    | "top-right"
-    | "bottom"
-    | "bottom-left"
-    | "bottom-right";
-  icon?: React.ReactElement;
-  containerStyle?: React.CSSProperties;
-}
-
-interface ToastOptions extends Omit<UseToastOptions, "status"> {
-  type?: "success" | "error" | "warning" | "info";
+interface ToastOptions {
+  duration?: number;
+  position?: 'top-left' | 'top-center' | 'top-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
 }
 
 export const useCustomToast = () => {
-  const toast = useChakraToast();
+  const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info', options?: ToastOptions) => {
+    const { duration = type === 'error' ? 5000 : 3000 } = options || {};
 
-  const showToast = (message: string, options?: ToastOptions) => {
-    const { type = "info", ...restOptions } = options || {};
-
-    const icons = {
-      success: <CheckCircleIcon />,
-      error: <MdError />,
-      warning: <WarningIcon />,
-      info: <InfoIcon />,
-    };
-
-    const colors = {
-      success: "green",
-      error: "red",
-      warning: "orange",
-      info: "blue",
-    };
-
-    return toast({
-      title: message,
-      status: type,
-      duration: type === "error" ? 5000 : 3000,
-      isClosable: true,
-      position: "top-right",
-      icon: icons[type],
-      containerStyle: {
-        color: `${colors[type]}.500`,
-        borderRadius: "lg",
-        boxShadow: "lg",
-      },
-      ...restOptions,
-    });
+    switch (type) {
+      case 'success':
+        return toast.success(message, { duration });
+      case 'error':
+        return toast.error(message, { duration });
+      default:
+        return toast(message, { duration });
+    }
   };
 
   return {
-    success: (message: string, options?: Omit<ToastOptions, "type">) =>
-      showToast(message, { ...options, type: "success" }),
-    error: (message: string, options?: Omit<ToastOptions, "type">) =>
-      showToast(message, { ...options, type: "error" }),
-    warning: (message: string, options?: Omit<ToastOptions, "type">) =>
-      showToast(message, { ...options, type: "warning" }),
-    info: (message: string, options?: Omit<ToastOptions, "type">) =>
-      showToast(message, { ...options, type: "info" }),
+    success: (message: string, options?: ToastOptions) =>
+      showToast(message, 'success', options),
+    error: (message: string, options?: ToastOptions) =>
+      showToast(message, 'error', options),
+    warning: (message: string, options?: ToastOptions) =>
+      toast(message, {
+        duration: options?.duration || 4000,
+        icon: '⚠️',
+      }),
+    info: (message: string, options?: ToastOptions) =>
+      toast(message, {
+        duration: options?.duration || 3000,
+        icon: 'ℹ️',
+      }),
     promise: <T,>(
       promise: Promise<T>,
       messages: {
@@ -77,35 +42,23 @@ export const useCustomToast = () => {
         error: string | ((error: any) => string);
       }
     ) => {
-      const id = toast({
-        title: messages.loading,
-        status: "info",
-        duration: null,
-        isClosable: false,
-        position: "top-right",
-      });
-
-      promise
-        .then((data) => {
-          toast.close(id);
-          const successMsg =
-            typeof messages.success === "function"
+      return toast.promise(
+        promise,
+        {
+          loading: messages.loading,
+          success: (data) =>
+            typeof messages.success === 'function'
               ? messages.success(data)
-              : messages.success;
-          showToast(successMsg, { type: "success" });
-          return data;
-        })
-        .catch((error) => {
-          toast.close(id);
-          const errorMsg =
-            typeof messages.error === "function"
+              : messages.success,
+          error: (error) =>
+            typeof messages.error === 'function'
               ? messages.error(error)
-              : messages.error;
-          showToast(errorMsg, { type: "error" });
-          throw error;
-        });
-
-      return promise;
+              : messages.error,
+        },
+        {
+          duration: 4000,
+        }
+      );
     },
   };
 };

@@ -17,14 +17,22 @@ from app.schemas.auth import (
 )
 from app.utils.auth_helpers import AuthBusinessLogic, AuthResponseFormatter, AuthEventLogger
 from app.core.auth import CurrentUser, get_current_user
-from app.models.database import User
+from app.core.database import get_session
+from app.models.database import User, ActivityActionType
+from app.repositories.activity_repository import ActivityRepository
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
+import uuid
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.post("/signup", response_model=AuthResponse)
-async def sign_up(request: SignUpRequest):
+async def sign_up(
+    request: SignUpRequest,
+    session: AsyncSession = Depends(get_session)
+):
     """
     Register a new user with comprehensive validation.
     
@@ -47,6 +55,35 @@ async def sign_up(request: SignUpRequest):
         # Log successful registration
         AuthEventLogger.log_registration_attempt(request.email, success=True)
         
+        # Log activity to database (only if user exists in local DB)
+        if auth_data.get("user") and auth_data["user"].get("id"):
+            try:
+                user_id = auth_data["user"]["id"]
+                if isinstance(user_id, str):
+                    user_id = uuid.UUID(user_id)
+                
+                # First check if user exists in local database
+                from sqlmodel import select
+                from app.models.database import User
+                stmt = select(User).where(User.id == user_id)
+                result = await session.execute(stmt)
+                local_user = result.scalar_one_or_none()
+                
+                # Only log activity if user exists in local database
+                if local_user:
+                    activity_repo = ActivityRepository(session)
+                    await activity_repo.create(
+                        user_id=user_id,
+                        action_type=ActivityActionType.USER_REGISTERED,
+                        entity_type="user",
+                        entity_id=user_id,
+                        entity_name=request.full_name or request.email,
+                        description="Welcome! Your account has been created"
+                    )
+            except Exception as e:
+                # Log the error but don't fail the registration
+                logger.warning(f"Could not log registration activity: {str(e)}")
+        
         logger.info(f"User registration completed successfully: {request.email}")
         return AuthResponse(**auth_data)
         
@@ -58,7 +95,10 @@ async def sign_up(request: SignUpRequest):
 
 
 @router.post("/signin", response_model=AuthResponse)
-async def sign_in(request: SignInRequest):
+async def sign_in(
+    request: SignInRequest,
+    session: AsyncSession = Depends(get_session)
+):
     """
     Sign in an existing user with email and password.
     
@@ -78,6 +118,35 @@ async def sign_in(request: SignInRequest):
         
         # Log successful sign in
         AuthEventLogger.log_sign_in_attempt(request.email, success=True)
+        
+        # Log activity to database (only if user exists in local DB)
+        if auth_data.get("user") and auth_data["user"].get("id"):
+            try:
+                user_id = auth_data["user"]["id"]
+                if isinstance(user_id, str):
+                    user_id = uuid.UUID(user_id)
+                
+                # First check if user exists in local database
+                from sqlmodel import select
+                from app.models.database import User
+                stmt = select(User).where(User.id == user_id)
+                result = await session.execute(stmt)
+                local_user = result.scalar_one_or_none()
+                
+                # Only log activity if user exists in local database
+                if local_user:
+                    activity_repo = ActivityRepository(session)
+                    await activity_repo.create(
+                        user_id=user_id,
+                        action_type=ActivityActionType.USER_SIGNED_IN,
+                        entity_type="user",
+                        entity_id=user_id,
+                        entity_name=request.email,
+                        description="Successfully logged in"
+                    )
+            except Exception as e:
+                # Log the error but don't fail the sign in
+                logger.warning(f"Could not log sign in activity: {str(e)}")
         
         logger.info(f"User sign in completed successfully: {request.email}")
         return AuthResponse(**auth_data)
@@ -118,7 +187,10 @@ async def refresh_token(request: RefreshTokenRequest):
 
 
 @router.post("/signout", response_model=MessageResponse)
-async def sign_out(current_user: User = CurrentUser):
+async def sign_out(
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
     """
     Sign out the current authenticated user.
     
@@ -131,6 +203,17 @@ async def sign_out(current_user: User = CurrentUser):
         success = await AuthBusinessLogic.handle_user_sign_out("")
         
         if success:
+            # Log activity to database
+            activity_repo = ActivityRepository(session)
+            await activity_repo.create(
+                user_id=current_user.id,
+                action_type=ActivityActionType.USER_SIGNED_OUT,
+                entity_type="user",
+                entity_id=current_user.id,
+                entity_name=current_user.full_name or current_user.email,
+                description="Successfully logged out"
+            )
+            
             logger.info(f"User signed out successfully: {current_user.email}")
             return MessageResponse(
                 message=f"Successfully signed out user {current_user.email}",

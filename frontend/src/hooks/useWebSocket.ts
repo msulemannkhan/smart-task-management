@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@chakra-ui/react';
+import useCustomToast from './useToast';
 
 interface WebSocketMessage {
   type: string;
@@ -13,6 +13,7 @@ interface WebSocketConfig {
   autoReconnect?: boolean;
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
+  initialDelay?: number; // Delay before first connection attempt
 }
 
 export function useWebSocket(config: WebSocketConfig = {}) {
@@ -20,11 +21,12 @@ export function useWebSocket(config: WebSocketConfig = {}) {
     autoReconnect = true,
     reconnectInterval = 3000,
     maxReconnectAttempts = 5,
+    initialDelay = 3000, // 3 second delay after login
   } = config;
 
   const { user, token } = useAuth();
   const queryClient = useQueryClient();
-  const toast = useToast();
+  const toast = useCustomToast();
   
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
@@ -65,14 +67,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
           
           // Show notification for task changes by other users
           if (message.data?.user_id && message.data.user_id !== user?.id) {
-            toast({
-              title: `Task ${message.type.replace('task_', '')}`,
-              description: message.data.title || 'A task has been modified',
-              status: 'info',
-              duration: 3000,
-              isClosable: true,
-              position: 'bottom-right',
-            });
+            toast.info(`Task ${message.type.replace('task_', '')}: ${message.data.title || 'A task has been modified'}`);
           }
           break;
 
@@ -91,28 +86,14 @@ export function useWebSocket(config: WebSocketConfig = {}) {
         case 'task_assigned':
           // Show notification when task is assigned to user
           if (message.data?.assignee_id === user?.id) {
-            toast({
-              title: 'New Task Assigned',
-              description: `You have been assigned: ${message.data.title}`,
-              status: 'warning',
-              duration: 5000,
-              isClosable: true,
-              position: 'top',
-            });
+            toast.warning(`New Task Assigned: You have been assigned: ${message.data.title}`);
           }
           break;
 
         case 'task_completed':
           // Celebrate task completion
           if (message.data?.user_id === user?.id) {
-            toast({
-              title: 'Task Completed! 🎉',
-              description: message.data.title,
-              status: 'success',
-              duration: 3000,
-              isClosable: true,
-              position: 'top-right',
-            });
+            toast.success(`Task Completed! 🎉 ${message.data.title}`);
           }
           break;
 
@@ -182,14 +163,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
         setConnectionStatus('error');
         
         // Show user-friendly error message
-        toast({
-          title: 'Connection Error',
-          description: 'Failed to connect to real-time updates. Retrying...',
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-          position: 'bottom-right',
-        });
+        toast.error('Connection Error: Failed to connect to real-time updates. Retrying...');
       };
 
       ws.current.onclose = (event) => {
@@ -221,14 +195,7 @@ export function useWebSocket(config: WebSocketConfig = {}) {
           }, backoffDelay);
         } else if (reconnectAttempts.current >= maxReconnectAttempts) {
           console.log('Max reconnection attempts reached. Stopping reconnection.');
-          toast({
-            title: 'Connection Lost',
-            description: 'Unable to reconnect to real-time updates. Please refresh the page.',
-            status: 'warning',
-            duration: 5000,
-            isClosable: true,
-            position: 'top',
-          });
+          toast.warning('Connection Lost: Unable to reconnect to real-time updates. Please refresh the page.');
         }
       };
     } catch (error) {
@@ -272,16 +239,24 @@ export function useWebSocket(config: WebSocketConfig = {}) {
     return false;
   }, []);
 
-  // Connect on mount and disconnect on unmount
+  // Connect on mount with delay and disconnect on unmount
   useEffect(() => {
+    let delayTimeout: NodeJS.Timeout | null = null;
+    
     if (token) {
-      connect();
+      // Delay initial connection to avoid immediate connection after login
+      delayTimeout = setTimeout(() => {
+        connect();
+      }, initialDelay);
     }
 
     return () => {
+      if (delayTimeout) {
+        clearTimeout(delayTimeout);
+      }
       disconnect();
     };
-  }, [token, connect, disconnect]);
+  }, [token]); // Remove connect and disconnect from deps to avoid reconnection loop
 
   return {
     isConnected,

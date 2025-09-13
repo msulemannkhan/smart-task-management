@@ -24,9 +24,9 @@ class ActivityService:
         user_name: Optional[str] = None
     ):
         """Log task creation activity"""
-        description = f"{user_name or 'User'} created task '{task_title}'"
+        description = f"Created a new task: \"{task_title}\""
         if project_name:
-            description += f" in {project_name}"
+            description = f"Added \"{task_title}\" to {project_name}"
         
         await self.activity_repo.create(
             user_id=user_id,
@@ -95,7 +95,7 @@ class ActivityService:
             entity_type="project",
             entity_id=project_id,
             entity_name=project_name,
-            description=f"{added_by_name or 'User'} added {target_user_name} to {project_name}",
+            description=f"Added {target_user_name} to the project '{project_name}'",
             target_user_id=target_user_id,
             project_id=project_id
         )
@@ -116,7 +116,7 @@ class ActivityService:
             entity_type="project",
             entity_id=project_id,
             entity_name=project_name,
-            description=f"{removed_by_name or 'User'} removed {target_user_name} from {project_name}",
+            description=f"Removed {target_user_name} from the project '{project_name}'",
             target_user_id=target_user_id,
             project_id=project_id
         )
@@ -138,7 +138,7 @@ class ActivityService:
             entity_type="task",
             entity_id=task_id,
             entity_name=task_title,
-            description=f"{user_name or 'User'} assigned '{task_title}' to {assignee_name}",
+            description=f"Assigned the task '{task_title}' to {assignee_name}",
             target_user_id=assignee_id,
             project_id=project_id
         )
@@ -160,7 +160,7 @@ class ActivityService:
             entity_type="task",
             entity_id=task_id,
             entity_name=task_title,
-            description=f"{user_name or 'User'} changed status of '{task_title}' from {old_status} to {new_status}",
+            description=f"Changed the status of '{task_title}' from '{old_status}' to '{new_status}'",
             project_id=project_id,
             metadata={"old_status": old_status, "new_status": new_status}
         )
@@ -182,7 +182,7 @@ class ActivityService:
             entity_type="task",
             entity_id=task_id,
             entity_name=task_title,
-            description=f"{user_name or 'User'} changed priority of '{task_title}' from {old_priority} to {new_priority}",
+            description=f"Changed the priority of '{task_title}' from '{old_priority}' to '{new_priority}'",
             project_id=project_id,
             metadata={"old_priority": old_priority, "new_priority": new_priority}
         )
@@ -199,11 +199,11 @@ class ActivityService:
     ):
         """Log task due date change"""
         if old_date and new_date:
-            description = f"{user_name or 'User'} changed due date of '{task_title}' from {old_date} to {new_date}"
+            description = f"Changed the due date of '{task_title}' from {old_date} to {new_date}"
         elif new_date:
-            description = f"{user_name or 'User'} set due date of '{task_title}' to {new_date}"
+            description = f"Set the due date of '{task_title}' to {new_date}"
         else:
-            description = f"{user_name or 'User'} removed due date from '{task_title}'"
+            description = f"Removed the due date from '{task_title}'"
         
         await self.activity_repo.create(
             user_id=user_id,
@@ -232,7 +232,7 @@ class ActivityService:
             entity_type="task",
             entity_id=task_id,
             entity_name=task_title,
-            description=f"{user_name or 'User'} commented on '{task_title}'",
+            description=f"Commented on the task '{task_title}'",
             project_id=project_id,
             metadata={"comment_preview": comment_text[:100] if comment_text else None}
         )
@@ -251,7 +251,7 @@ class ActivityService:
             entity_type="project",
             entity_id=project_id,
             entity_name=project_name,
-            description=f"{user_name or 'User'} created project '{project_name}'",
+            description=f"Created the project '{project_name}'",
             project_id=project_id
         )
     
@@ -271,7 +271,7 @@ class ActivityService:
             entity_type="project",
             entity_id=project_id,
             entity_name=project_name,
-            description=f"{user_name or 'User'} updated {update_type} for project '{project_name}'",
+            description=f"Updated the {update_type} for the project '{project_name}'",
             project_id=project_id,
             metadata=metadata
         )
@@ -291,6 +291,6 @@ class ActivityService:
             entity_type="task",
             entity_id=task_id,
             entity_name=task_title,
-            description=f"{user_name or 'User'} deleted task '{task_title}'",
+            description=f"Deleted the task '{task_title}'",
             project_id=project_id
         )

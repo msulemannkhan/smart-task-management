@@ -7,6 +7,7 @@ import {
   useLocation,
   Navigate,
 } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import { Sidebar } from "./components/layout/Sidebar";
 import { MobileHeader } from "./components/layout/MobileHeader";
 import { TaskDetailPanel } from "./components/layout/TaskDetailPanel";
@@ -47,9 +48,6 @@ const Categories = lazy(() =>
 );
 const Profile = lazy(() =>
   import("./pages/Profile").then((m) => ({ default: m.Profile }))
-);
-const Settings = lazy(() =>
-  import("./pages/Settings").then((m) => ({ default: m.Settings }))
 );
 const Login = lazy(() =>
   import("./pages/Login").then((m) => ({ default: m.Login }))
@@ -151,7 +149,7 @@ function AppContent() {
                         />
                         <Route path="/categories" element={<Categories />} />
                         <Route path="/profile" element={<Profile />} />
-                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/settings" element={<Navigate to="/profile" replace />} />
                       </Routes>
                     </Box>
 
@@ -180,6 +178,35 @@ function App() {
             <TaskProvider>
               <TaskRefreshProvider>
                 <AppContent />
+                <Toaster
+                  position="top-right"
+                  toastOptions={{
+                    duration: 4000,
+                    style: {
+                      background: '#363636',
+                      color: '#fff',
+                      borderRadius: '8px',
+                    },
+                    success: {
+                      style: {
+                        background: '#48bb78',
+                      },
+                      iconTheme: {
+                        primary: '#fff',
+                        secondary: '#48bb78',
+                      },
+                    },
+                    error: {
+                      style: {
+                        background: '#e53e3e',
+                      },
+                      iconTheme: {
+                        primary: '#fff',
+                        secondary: '#e53e3e',
+                      },
+                    },
+                  }}
+                />
               </TaskRefreshProvider>
             </TaskProvider>
           </WebSocketProvider>

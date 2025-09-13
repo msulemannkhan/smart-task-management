@@ -25,7 +25,8 @@ from app.utils.task_helpers import (
 from app.core.auth import CurrentUser
 from app.core.database import get_session
 from app.repositories.task_repository import TaskRepository
-from app.models.database import User, TaskStatus, TaskPriority, TaskComment, ActivityType
+from app.repositories.activity_repository import ActivityRepository
+from app.models.database import User, TaskStatus, TaskPriority, TaskComment, ActivityType, ActivityActionType
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from pydantic import BaseModel
@@ -76,6 +77,18 @@ async def create_task(
     task = Task(**task_data)
     
     created_task = await repo.create(task)
+    
+    # Create activity
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.TASK_CREATED,
+        entity_type="task",
+        entity_id=created_task.id,
+        entity_name=created_task.title,
+        description=f"Added a new task: \"{created_task.title}\"",
+        project_id=created_task.project_id
+    )
     
     # Use broadcaster for events
     await TaskEventBroadcaster.broadcast_task_event(
@@ -300,6 +313,39 @@ async def update_task(
     repo = TaskRepository(session)
     updated_task = await repo.update(task_id, update_data, current_user.id)
     
+    # Create activity based on what was updated
+    activity_repo = ActivityRepository(session)
+    if 'status' in update_data:
+        await activity_repo.create(
+            user_id=current_user.id,
+            action_type=ActivityActionType.STATUS_CHANGED,
+            entity_type="task",
+            entity_id=updated_task.id,
+            entity_name=updated_task.title,
+            description=f"Moved \"{updated_task.title}\" to {update_data['status'].replace('_', ' ').title()}",
+            project_id=updated_task.project_id
+        )
+    elif 'priority' in update_data:
+        await activity_repo.create(
+            user_id=current_user.id,
+            action_type=ActivityActionType.PRIORITY_CHANGED,
+            entity_type="task",
+            entity_id=updated_task.id,
+            entity_name=updated_task.title,
+            description=f"Set \"{updated_task.title}\" priority to {update_data['priority'].title()}",
+            project_id=updated_task.project_id
+        )
+    else:
+        await activity_repo.create(
+            user_id=current_user.id,
+            action_type=ActivityActionType.TASK_UPDATED,
+            entity_type="task",
+            entity_id=updated_task.id,
+            entity_name=updated_task.title,
+            description=f"Updated \"{updated_task.title}\"",
+            project_id=updated_task.project_id
+        )
+    
     # Broadcast update event
     await TaskEventBroadcaster.broadcast_task_event(
         "task_updated", updated_task, current_user.id
@@ -336,6 +382,18 @@ async def delete_task(
     # Delete task
     repo = TaskRepository(session)
     await repo.delete(task_id, current_user.id, hard_delete=hard_delete)
+    
+    # Create activity
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.TASK_DELETED,
+        entity_type="task",
+        entity_id=task.id,
+        entity_name=task.title,
+        description=f"Removed task: \"{task.title}\"",
+        project_id=task.project_id
+    )
     
     # Broadcast delete event
     await TaskEventBroadcaster.broadcast_task_event(
@@ -376,6 +434,20 @@ async def complete_task(
     }
     
     updated_task = await repo.update(task_id, update_data, current_user.id)
+    
+    # Create activity
+    activity_repo = ActivityRepository(session)
+    action_type = ActivityActionType.TASK_COMPLETED if completed else ActivityActionType.TASK_UPDATED
+    description = f"{'Completed' if completed else 'Reopened'} \"{updated_task.title}\""
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=action_type,
+        entity_type="task",
+        entity_id=updated_task.id,
+        entity_name=updated_task.title,
+        description=description,
+        project_id=updated_task.project_id
+    )
     
     # Broadcast completion event
     event_type = "task_completed" if completed else "task_uncompleted"

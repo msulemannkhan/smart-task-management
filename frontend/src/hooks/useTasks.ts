@@ -8,7 +8,7 @@ import {
   type TaskStats,
   TaskStatus 
 } from '../types/task'
-import { useToast } from '@chakra-ui/react'
+import useCustomToast from './useToast'
 
 // Query keys
 export const TASK_KEYS = {
@@ -61,7 +61,7 @@ export function useTaskStats(projectId?: string) {
 // Create task mutation
 export function useCreateTask() {
   const queryClient = useQueryClient()
-  const toast = useToast()
+  const toast = useCustomToast()
 
   return useMutation({
     mutationFn: (taskData: CreateTaskRequest) => TaskService.createTask(taskData),
@@ -70,22 +70,10 @@ export function useCreateTask() {
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.lists() })
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.stats() })
       
-      toast({
-        title: 'Task created',
-        description: `"${newTask.title}" has been created successfully.`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      })
+      toast.success(`Task "${newTask.title}" has been created successfully.`)
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error creating task',
-        description: error.response?.data?.detail || 'Something went wrong.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      toast.error(error.response?.data?.detail || 'Error creating task. Something went wrong.')
     },
   })
 }
@@ -93,7 +81,7 @@ export function useCreateTask() {
 // Update task mutation
 export function useUpdateTask() {
   const queryClient = useQueryClient()
-  const toast = useToast()
+  const toast = useCustomToast()
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateTaskRequest }) =>
@@ -106,22 +94,10 @@ export function useUpdateTask() {
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.lists() })
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.stats() })
       
-      toast({
-        title: 'Task updated',
-        description: `"${updatedTask.title}" has been updated.`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      })
+      toast.success(`Task "${updatedTask.title}" has been updated.`)
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error updating task',
-        description: error.response?.data?.detail || 'Something went wrong.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      toast.error(error.response?.data?.detail || 'Error updating task. Something went wrong.')
     },
   })
 }
@@ -129,7 +105,7 @@ export function useUpdateTask() {
 // Delete task mutation
 export function useDeleteTask() {
   const queryClient = useQueryClient()
-  const toast = useToast()
+  const toast = useCustomToast()
 
   return useMutation({
     mutationFn: (id: string) => TaskService.deleteTask(id),
@@ -141,22 +117,10 @@ export function useDeleteTask() {
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.lists() })
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.stats() })
       
-      toast({
-        title: 'Task deleted',
-        description: 'Task has been deleted successfully.',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      })
+      toast.success('Task has been deleted successfully.')
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error deleting task',
-        description: error.response?.data?.detail || 'Something went wrong.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      toast.error(error.response?.data?.detail || 'Error deleting task. Something went wrong.')
     },
   })
 }
@@ -209,7 +173,7 @@ export function useUpdateTaskStatus() {
 // Bulk operations
 export function useBulkUpdateTasks() {
   const queryClient = useQueryClient()
-  const toast = useToast()
+  const toast = useCustomToast()
 
   return useMutation({
     mutationFn: ({ taskIds, updates }: { taskIds: string[]; updates: UpdateTaskRequest }) =>
@@ -218,22 +182,10 @@ export function useBulkUpdateTasks() {
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.lists() })
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.stats() })
       
-      toast({
-        title: 'Tasks updated',
-        description: `${taskIds.length} tasks have been updated.`,
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      })
+      toast.success(`${taskIds.length} tasks have been updated.`)
     },
     onError: (error: any) => {
-      toast({
-        title: 'Error updating tasks',
-        description: error.response?.data?.detail || 'Something went wrong.',
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      toast.error(error.response?.data?.detail || 'Error updating tasks. Something went wrong.')
     },
   })
 }

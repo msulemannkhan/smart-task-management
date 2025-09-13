@@ -1,11 +1,16 @@
 """
 Users endpoints for listing users that share projects with current user, and fetching user by id when visible.
 """
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select, or_, and_
 import uuid
-from typing import List
+from typing import List, Optional
+import os
+import aiofiles
+from pathlib import Path
+import secrets
 
 from app.core.database import get_session
 from app.core.auth import CurrentUser
@@ -76,5 +81,108 @@ async def get_user_if_visible(
     if not target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return map_user(target)
+
+
+@router.post("/avatar", response_model=dict)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Upload an avatar image for the current user.
+    """
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Validate file size (max 5MB)
+    max_size = 5 * 1024 * 1024  # 5MB
+    contents = await file.read()
+    if len(contents) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size exceeds 5MB limit"
+        )
+    
+    # Create uploads directory if it doesn't exist
+    upload_dir = Path("uploads/avatars")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique filename
+    file_extension = file.filename.split(".")[-1]
+    unique_filename = f"{current_user.id}_{secrets.token_hex(8)}.{file_extension}"
+    file_path = upload_dir / unique_filename
+    
+    # Save file
+    async with aiofiles.open(file_path, 'wb') as f:
+        await f.write(contents)
+    
+    # Update user's avatar URL in database
+    avatar_url = f"/uploads/avatars/{unique_filename}"
+    current_user.avatar_url = avatar_url
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    
+    # Log activity
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.USER_AVATAR_UPDATED,
+        entity_type="user",
+        entity_id=current_user.id,
+        entity_name=current_user.full_name or current_user.email,
+        description="Changed profile picture"
+    )
+    
+    return {"avatar_url": avatar_url, "message": "Avatar uploaded successfully"}
+
+
+@router.put("/profile", response_model=PublicUser)
+async def update_profile(
+    request: dict,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Update current user's profile information.
+    """
+    full_name = request.get("full_name")
+    bio = request.get("bio")
+    
+    if full_name is not None:
+        current_user.full_name = full_name
+    
+    if bio is not None:
+        current_user.bio = bio
+    
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+    
+    # Log activity
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.USER_PROFILE_UPDATED,
+        entity_type="user",
+        entity_id=current_user.id,
+        entity_name=current_user.full_name or current_user.email,
+        description="Updated profile details"
+    )
+    
+    return map_user(current_user)
+
+
+# Note: Password change is handled through Supabase auth, not directly in our API
 
 

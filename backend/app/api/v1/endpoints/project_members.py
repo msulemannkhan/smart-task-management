@@ -102,6 +102,22 @@ async def add_member(
     session.add(pm)
     await session.commit()
     await session.refresh(pm)
+
+    # Create activity
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.PROJECT_MEMBER_ADDED,
+        entity_type="project",
+        entity_id=project_id,
+        entity_name=project.name,
+        target_user_id=payload.user_id,
+        description=f"Added {user.full_name or user.email} as a team member to \"{project.name}\"",
+        project_id=project_id
+    )
+
     return map_member(pm, user)
 
 
@@ -140,6 +156,26 @@ async def remove_member(
     ).scalar_one_or_none()
     if not pm:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    # Create activity before deleting
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    # Need to get user info for the description
+    user_to_remove_res = await session.execute(select(User).where(User.id == pm.user_id))
+    user_to_remove = user_to_remove_res.scalar_one_or_none()
+    
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.PROJECT_MEMBER_REMOVED,
+        entity_type="project",
+        entity_id=project_id,
+        entity_name=project.name,
+        target_user_id=pm.user_id,
+        description=f"Removed {user_to_remove.full_name or user_to_remove.email} from \"{project.name}\"",
+        project_id=project_id
+    )
+
     await session.delete(pm)
     await session.commit()
     return

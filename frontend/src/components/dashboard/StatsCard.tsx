@@ -45,9 +45,11 @@ export function StatsCard({
     `linear(to-br, ${colorScheme}.400, ${colorScheme}.600)`,
     `linear(to-br, ${colorScheme}.500, ${colorScheme}.700)`
   );
-  const cardBg = useColorModeValue("white", "gray.800");
-  const textColor = useColorModeValue("gray.700", "gray.200");
+  const cardBg = useColorModeValue("white", "dark.bg.tertiary");
+  const textColor = useColorModeValue("gray.700", "gray.100");
   const subtitleColor = useColorModeValue("gray.500", "gray.400");
+  const iconBg = useColorModeValue(`${colorScheme}.50`, `${colorScheme}.900`);
+  const iconColor = useColorModeValue(`${colorScheme}.500`, `${colorScheme}.300`);
 
   return (
     <MotionBox
@@ -60,11 +62,19 @@ export function StatsCard({
         bg={cardBg}
         borderRadius="xl"
         overflow="hidden"
-        shadow="lg"
+        border="none"
+        boxShadow="none"
         cursor={onClick ? "pointer" : "default"}
         onClick={onClick}
-        _hover={onClick ? { shadow: "xl" } : {}}
+        _hover={onClick ? { 
+          transform: "translateY(-2px)",
+          boxShadow: "lg"
+        } : {}}
         transition="all 0.3s"
+        background={useColorModeValue(
+          "white",
+          "linear-gradient(135deg, #1c2128 0%, #262c36 100%)"
+        )}
       >
         {/* Gradient Background */}
         <Box
@@ -125,9 +135,10 @@ export function StatsCard({
 
             <Box
               p={3}
-              bg={`${colorScheme}.50`}
+              bg={iconBg}
               borderRadius="lg"
-              color={`${colorScheme}.500`}
+              color={iconColor}
+              opacity={0.9}
             >
               <Icon as={icon} boxSize={6} />
             </Box>

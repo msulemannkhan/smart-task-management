@@ -190,6 +190,20 @@ async def create_project(
     
     await session.commit()
     await session.refresh(project)
+
+    # Create activity
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.PROJECT_CREATED,
+        entity_type="project",
+        entity_id=project.id,
+        entity_name=project.name,
+        description=f"Started a new project: \"{project.name}\"",
+        project_id=project.id
+    )
     
     logger.info(f"Project created successfully: {project.id} with owner as member")
     return ProjectResponse(
@@ -257,6 +271,20 @@ async def update_project(
     
     await session.commit()
     await session.refresh(project)
+
+    # Create activity
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.PROJECT_UPDATED,
+        entity_type="project",
+        entity_id=project.id,
+        entity_name=project.name,
+        description=f"Updated project \"{project.name}\"",
+        project_id=project.id
+    )
     
     logger.info(f"Project updated successfully: {project.id}")
     return ProjectResponse(
@@ -293,6 +321,20 @@ async def delete_project(
     
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only project owner can delete")
+
+    # Create activity before deleting
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.PROJECT_DELETED,
+        entity_type="project",
+        entity_id=project.id,
+        entity_name=project.name,
+        description=f"Deleted the project '{project.name}'",
+        project_id=project.id
+    )
     
     await session.delete(project)
     await session.commit()

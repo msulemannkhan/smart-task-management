@@ -54,19 +54,37 @@ class TaskPriority(str, Enum):
 
 class ActivityActionType(str, Enum):
     """Types of actions that can be logged"""
+    # Task actions
     TASK_CREATED = "task_created"
     TASK_UPDATED = "task_updated"
     TASK_COMPLETED = "task_completed"
     TASK_DELETED = "task_deleted"
     TASK_ASSIGNED = "task_assigned"
-    PROJECT_CREATED = "project_created"
-    PROJECT_UPDATED = "project_updated"
-    PROJECT_MEMBER_ADDED = "project_member_added"
-    PROJECT_MEMBER_REMOVED = "project_member_removed"
-    COMMENT_ADDED = "comment_added"
     STATUS_CHANGED = "status_changed"
     PRIORITY_CHANGED = "priority_changed"
     DUE_DATE_CHANGED = "due_date_changed"
+    
+    # Project actions
+    PROJECT_CREATED = "project_created"
+    PROJECT_UPDATED = "project_updated"
+    PROJECT_DELETED = "project_deleted"
+    PROJECT_MEMBER_ADDED = "project_member_added"
+    PROJECT_MEMBER_REMOVED = "project_member_removed"
+    
+    # Category actions
+    CATEGORY_CREATED = "category_created"
+    CATEGORY_UPDATED = "category_updated"
+    CATEGORY_DELETED = "category_deleted"
+    
+    # User actions
+    USER_SIGNED_IN = "user_signed_in"
+    USER_SIGNED_OUT = "user_signed_out"
+    USER_REGISTERED = "user_registered"
+    USER_PROFILE_UPDATED = "user_profile_updated"
+    USER_AVATAR_UPDATED = "user_avatar_updated"
+    
+    # Other actions
+    COMMENT_ADDED = "comment_added"
 
 
 # PostgreSQL ENUM types that reference existing database enums
