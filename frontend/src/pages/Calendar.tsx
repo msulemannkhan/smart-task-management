@@ -349,7 +349,6 @@ export function Calendar() {
               fontWeight="semibold"
               shadow="sm"
               _hover={{
-                transform: "translateY(-1px)",
                 shadow: "md",
               }}
               transition="all 0.2s"
@@ -465,9 +464,22 @@ export function Calendar() {
                       spacing={1}
                       align="stretch"
                       h="calc(100% - 28px)"
-                      overflow="hidden"
+                      overflowY="auto"
+                      overflowX="hidden"
+                      css={{
+                        '&::-webkit-scrollbar': {
+                          width: '4px',
+                        },
+                        '&::-webkit-scrollbar-track': {
+                          background: 'transparent',
+                        },
+                        '&::-webkit-scrollbar-thumb': {
+                          background: 'rgba(0, 0, 0, 0.2)',
+                          borderRadius: '2px',
+                        },
+                      }}
                     >
-                      {dayTasks.slice(0, 2).map((task, taskIndex) => {
+                      {dayTasks.map((task, taskIndex) => {
                         const taskColor = getTaskColor(task);
                         return (
                           <Tooltip
@@ -476,47 +488,31 @@ export function Calendar() {
                             placement="top"
                           >
                             <Box
-                              p={2}
+                              p={1}
                               bg={`${taskColor}.100`}
-                              borderLeft="3px solid"
+                              borderLeft="2px solid"
                               borderLeftColor={`${taskColor}.500`}
-                              borderRadius="md"
+                              borderRadius="sm"
                               fontSize="xs"
                               color={`${taskColor}.800`}
                               w="full"
                               _hover={{
                                 bg: `${taskColor}.200`,
-                                transform: "translateX(2px)",
                               }}
                               transition="all 0.2s"
                               cursor="pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = `/tasks/${task.id}`;
+                              }}
                             >
-                              <Text noOfLines={1} fontWeight="medium">
+                              <Text noOfLines={1} fontSize="xs" fontWeight="medium">
                                 {task.title}
                               </Text>
-                              {task.priority && (
-                                <Text
-                                  fontSize="2xs"
-                                  color={`${taskColor}.600`}
-                                  mt={1}
-                                >
-                                  {task.priority.toUpperCase()}
-                                </Text>
-                              )}
                             </Box>
                           </Tooltip>
                         );
                       })}
-                      {dayTasks.length > 2 && (
-                        <Text
-                          fontSize="xs"
-                          color={mutedTextColor}
-                          textAlign="center"
-                          fontWeight="medium"
-                        >
-                          +{dayTasks.length - 2} more
-                        </Text>
-                      )}
                     </VStack>
                   </Box>
                 );

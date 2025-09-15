@@ -52,6 +52,7 @@ import { ProjectMemberService } from "../services/projectMemberService";
 import { MembersDrawer } from "../components/projects/MembersDrawer";
 import { ProjectModal } from "../components/projects/ProjectModal";
 import { TaskService } from "../services/taskService";
+import { UserAvatar } from "../components/common/UserAvatar";
 
 export function Projects() {
   const navigate = useNavigate();
@@ -64,6 +65,7 @@ export function Projects() {
 
   const [projects, setProjects] = useState<ProjectListResponse["projects"]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
+  const [projectMembers, setProjectMembers] = useState<Record<string, any[]>>({});
   const [taskCounts, setTaskCounts] = useState<
     Record<string, { total: number; completed: number }>
   >({});
@@ -95,16 +97,23 @@ export function Projects() {
 
         // Fetch member counts and task stats per project
         const memberEntries: [string, number][] = [];
+        const memberDetailsEntries: [string, any[]][] = [];
         const taskEntries: [string, { total: number; completed: number }][] =
           [];
 
         for (const p of uniqueProjects) {
-          // Get member count
+          // Get members with details
           try {
             const m = await ProjectMemberService.list(p.id);
-            memberEntries.push([p.id, m.total]);
+            // Filter out duplicate members based on user_id
+            const uniqueMembers = m.members?.filter((member, index, self) =>
+              index === self.findIndex((m) => m.user_id === member.user_id)
+            ) || [];
+            memberEntries.push([p.id, uniqueMembers.length]);
+            memberDetailsEntries.push([p.id, uniqueMembers]);
           } catch {
             memberEntries.push([p.id, 1]); // At least owner
+            memberDetailsEntries.push([p.id, []]);
           }
 
           // Get task stats
@@ -120,6 +129,7 @@ export function Projects() {
         }
 
         setMemberCounts(Object.fromEntries(memberEntries));
+        setProjectMembers(Object.fromEntries(memberDetailsEntries));
         setTaskCounts(Object.fromEntries(taskEntries));
       } finally {
         setIsLoading(false);
@@ -134,14 +144,21 @@ export function Projects() {
 
       // Reload member counts and task stats
       const memberEntries: [string, number][] = [];
+      const memberDetailsEntries: [string, any[]][] = [];
       const taskEntries: [string, { total: number; completed: number }][] = [];
 
       for (const p of res.projects) {
         try {
           const m = await ProjectMemberService.list(p.id);
-          memberEntries.push([p.id, m.total]);
+          // Filter out duplicate members based on user_id
+          const uniqueMembers = m.members?.filter((member, index, self) =>
+            index === self.findIndex((m) => m.user_id === member.user_id)
+          ) || [];
+          memberEntries.push([p.id, uniqueMembers.length]);
+          memberDetailsEntries.push([p.id, uniqueMembers]);
         } catch {
           memberEntries.push([p.id, 1]);
+          memberDetailsEntries.push([p.id, []]);
         }
 
         try {
@@ -156,6 +173,7 @@ export function Projects() {
       }
 
       setMemberCounts(Object.fromEntries(memberEntries));
+      setProjectMembers(Object.fromEntries(memberDetailsEntries));
       setTaskCounts(Object.fromEntries(taskEntries));
     } catch (error) {
       console.error("Failed to load projects:", error);
@@ -283,7 +301,6 @@ export function Projects() {
                   position="relative"
                   transition="all 0.2s"
                   _hover={{
-                    transform: "translateY(-4px)",
                     boxShadow: "lg",
                     cursor: "pointer",
                   }}
@@ -409,12 +426,24 @@ export function Projects() {
                         borderTop="1px"
                         borderColor={borderColor}
                       >
-                        <HStack spacing={1} fontSize="xs" color={textMuted}>
-                          <Icon as={FiUsers} boxSize={3} />
-                          <Text>
-                            {memberCounts[project.id] ?? 1} member
-                            {memberCounts[project.id] !== 1 ? "s" : ""}
-                          </Text>
+                        <HStack spacing={2}>
+                          <AvatarGroup size="xs" max={3}>
+                            {projectMembers[project.id]?.slice(0, 3).map((member) => (
+                              <Tooltip
+                                key={member.id}
+                                label={member.user?.full_name || member.user?.email}
+                              >
+                                <Box>
+                                  <UserAvatar user={member.user} size="xs" />
+                                </Box>
+                              </Tooltip>
+                            ))}
+                          </AvatarGroup>
+                          {memberCounts[project.id] > 3 && (
+                            <Text fontSize="xs" color={textMuted}>
+                              +{memberCounts[project.id] - 3}
+                            </Text>
+                          )}
                         </HStack>
 
                         <Tooltip label="View Project" placement="top">
@@ -447,7 +476,6 @@ export function Projects() {
                 transition="all 0.2s"
                 _hover={{
                   borderColor: "primary.500",
-                  transform: "translateY(-4px)",
                 }}
                 onClick={handleNewProject}
               >
@@ -530,11 +558,24 @@ export function Projects() {
                           </HStack>
                         </Td>
                         <Td>
-                          <HStack spacing={1}>
-                            <Icon as={FiUsers} boxSize={3} color={textMuted} />
-                            <Text fontSize="sm">
-                              {memberCounts[project.id] ?? 1}
-                            </Text>
+                          <HStack spacing={2}>
+                            <AvatarGroup size="xs" max={3}>
+                              {projectMembers[project.id]?.slice(0, 3).map((member) => (
+                                <Tooltip
+                                  key={member.id}
+                                  label={member.user?.full_name || member.user?.email}
+                                >
+                                  <Box>
+                                    <UserAvatar user={member.user} size="xs" />
+                                  </Box>
+                                </Tooltip>
+                              ))}
+                            </AvatarGroup>
+                            {memberCounts[project.id] > 3 && (
+                              <Text fontSize="xs" color={textMuted}>
+                                +{memberCounts[project.id] - 3}
+                              </Text>
+                            )}
                           </HStack>
                         </Td>
                         <Td>

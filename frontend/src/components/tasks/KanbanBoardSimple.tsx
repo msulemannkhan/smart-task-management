@@ -76,7 +76,6 @@ function SimpleTaskCard({ task }: { task: Task }) {
       _hover={{
         shadow: "lg",
         borderColor: "blue.300",
-        transform: "translateY(-2px)",
       }}
       cursor="pointer"
       transition="all 0.3s ease"
@@ -333,31 +332,36 @@ export function KanbanBoardSimple({
     try {
       setIsLoading(true);
       setError(null);
-      
+
       // Fetch all tasks first
       const response = await TaskService.getAllTasks({
         project_id: projectId,
-        status: statusFilter && statusFilter !== "ALL" ? statusFilter as TaskStatus : undefined,
+        status:
+          statusFilter && statusFilter !== "ALL"
+            ? (statusFilter as TaskStatus)
+            : undefined,
         per_page: 100,
       });
-      
+
       let filteredTasks = response.tasks;
-      
+
       // Apply client-side search filter for better reliability
       if (searchQuery && searchQuery.trim().length > 0) {
         const query = searchQuery.toLowerCase().trim();
-        filteredTasks = filteredTasks.filter(task => 
-          task.title.toLowerCase().includes(query) ||
-          (task.description && task.description.toLowerCase().includes(query)) ||
-          (task.category && task.category.name.toLowerCase().includes(query))
+        filteredTasks = filteredTasks.filter(
+          (task) =>
+            task.title.toLowerCase().includes(query) ||
+            (task.description &&
+              task.description.toLowerCase().includes(query)) ||
+            (task.category && task.category.name.toLowerCase().includes(query))
         );
       }
-      
+
       // Apply sorting
       if (sortBy) {
         filteredTasks = sortTasks(filteredTasks, sortBy);
       }
-      
+
       setTasks(filteredTasks);
     } catch (err) {
       const errorMessage =
@@ -383,34 +387,57 @@ export function KanbanBoardSimple({
     }, {} as Record<TaskStatus, Task[]>);
 
     // Default columns to always show
-    const defaultColumns = [TaskStatus.BACKLOG, TaskStatus.TODO, TaskStatus.IN_PROGRESS];
-    
+    const defaultColumns = [
+      TaskStatus.BACKLOG,
+      TaskStatus.TODO,
+      TaskStatus.IN_PROGRESS,
+    ];
+
     // Additional columns to show if they have tasks
-    const additionalColumns = [TaskStatus.IN_REVIEW, TaskStatus.BLOCKED, TaskStatus.DONE, TaskStatus.CANCELLED];
-    
+    const additionalColumns = [
+      TaskStatus.IN_REVIEW,
+      TaskStatus.BLOCKED,
+      TaskStatus.DONE,
+      TaskStatus.CANCELLED,
+    ];
+
     // Build columns array
     const columnsToShow: KanbanColumn[] = [];
-    
+
     // Add default columns
-    defaultColumns.forEach(status => {
-      const title = status === TaskStatus.IN_PROGRESS ? "IN PROGRESS" : 
-                   status === TaskStatus.TODO ? "TODO" : 
-                   status === TaskStatus.BACKLOG ? "BACKLOG" : status.toUpperCase();
+    defaultColumns.forEach((status) => {
+      const title =
+        status === TaskStatus.IN_PROGRESS
+          ? "IN PROGRESS"
+          : status === TaskStatus.TODO
+          ? "TODO"
+          : status === TaskStatus.BACKLOG
+          ? "BACKLOG"
+          : status.toUpperCase();
       columnsToShow.push({
         id: status,
         title,
         tasks: tasksByStatus[status] || [],
       });
     });
-    
+
     // Add additional columns only if they have tasks or if specifically filtered
-    additionalColumns.forEach(status => {
+    additionalColumns.forEach((status) => {
       // Only show if there are tasks OR if we're specifically filtering for this status
-      if ((tasksByStatus[status] && tasksByStatus[status].length > 0) || statusFilter === status) {
-        const title = status === TaskStatus.IN_REVIEW ? "IN REVIEW" :
-                     status === TaskStatus.DONE ? "COMPLETED" :
-                     status === TaskStatus.BLOCKED ? "BLOCKED" :
-                     status === TaskStatus.CANCELLED ? "CANCELLED" : status.toUpperCase();
+      if (
+        (tasksByStatus[status] && tasksByStatus[status].length > 0) ||
+        statusFilter === status
+      ) {
+        const title =
+          status === TaskStatus.IN_REVIEW
+            ? "IN REVIEW"
+            : status === TaskStatus.DONE
+            ? "COMPLETED"
+            : status === TaskStatus.BLOCKED
+            ? "BLOCKED"
+            : status === TaskStatus.CANCELLED
+            ? "CANCELLED"
+            : status.toUpperCase();
         columnsToShow.push({
           id: status,
           title,
@@ -477,7 +504,13 @@ export function KanbanBoardSimple({
           },
         }}
       >
-        <Flex gap={4} h="full" align="stretch" minH="600px" minW={columns.length <= 3 ? "800px" : `${columns.length * 300}px`}>
+        <Flex
+          gap={4}
+          h="full"
+          align="stretch"
+          minH="600px"
+          minW={columns.length <= 3 ? "800px" : `${columns.length * 300}px`}
+        >
           {columns.map((column) => (
             <SimpleColumn key={column.id} column={column} />
           ))}

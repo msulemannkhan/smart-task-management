@@ -66,8 +66,7 @@ export function StatsCard({
         boxShadow="none"
         cursor={onClick ? "pointer" : "default"}
         onClick={onClick}
-        _hover={onClick ? { 
-          transform: "translateY(-2px)",
+        _hover={onClick ? {
           boxShadow: "lg"
         } : {}}
         transition="all 0.3s"

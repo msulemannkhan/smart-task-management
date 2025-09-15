@@ -2,7 +2,7 @@
 Task management endpoints using clean architecture.
 CRUD operations for individual tasks with proper separation of concerns.
 """
-from fastapi import APIRouter, status, Depends, Query
+from fastapi import APIRouter, status, Depends, Query, HTTPException
 from typing import Optional, List
 import uuid
 import logging
@@ -26,10 +26,14 @@ from app.core.auth import CurrentUser
 from app.core.database import get_session
 from app.repositories.task_repository import TaskRepository
 from app.repositories.activity_repository import ActivityRepository
-from app.models.database import User, TaskStatus, TaskPriority, TaskComment, ActivityType, ActivityActionType
+from app.models.database import User, TaskStatus, TaskPriority, TaskComment, ActivityType, ActivityActionType, UserActivity, TaskAttachment
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 from pydantic import BaseModel
+from fastapi import UploadFile, File
+import aiofiles
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -313,8 +317,11 @@ async def update_task(
     repo = TaskRepository(session)
     updated_task = await repo.update(task_id, update_data, current_user.id)
     
-    # Create activity based on what was updated
+    # Create activities for each type of change
     activity_repo = ActivityRepository(session)
+    activities_created = []
+
+    # Track status changes
     if 'status' in update_data:
         await activity_repo.create(
             user_id=current_user.id,
@@ -325,7 +332,10 @@ async def update_task(
             description=f"Moved \"{updated_task.title}\" to {update_data['status'].replace('_', ' ').title()}",
             project_id=updated_task.project_id
         )
-    elif 'priority' in update_data:
+        activities_created.append('status')
+
+    # Track priority changes
+    if 'priority' in update_data:
         await activity_repo.create(
             user_id=current_user.id,
             action_type=ActivityActionType.PRIORITY_CHANGED,
@@ -335,7 +345,87 @@ async def update_task(
             description=f"Set \"{updated_task.title}\" priority to {update_data['priority'].title()}",
             project_id=updated_task.project_id
         )
-    else:
+        activities_created.append('priority')
+
+    # Track title changes
+    if 'title' in update_data:
+        await activity_repo.create(
+            user_id=current_user.id,
+            action_type=ActivityActionType.TASK_UPDATED,
+            entity_type="task",
+            entity_id=updated_task.id,
+            entity_name=updated_task.title,
+            description=f"Renamed task to \"{update_data['title']}\"",
+            project_id=updated_task.project_id
+        )
+        activities_created.append('title')
+
+    # Track assignee changes
+    if 'assignee_id' in update_data:
+        await activity_repo.create(
+            user_id=current_user.id,
+            action_type=ActivityActionType.TASK_UPDATED,
+            entity_type="task",
+            entity_id=updated_task.id,
+            entity_name=updated_task.title,
+            description=f"Assigned \"{updated_task.title}\" to someone",
+            project_id=updated_task.project_id
+        )
+        activities_created.append('assignee')
+
+    # Track due date changes
+    if 'due_date' in update_data:
+        await activity_repo.create(
+            user_id=current_user.id,
+            action_type=ActivityActionType.TASK_UPDATED,
+            entity_type="task",
+            entity_id=updated_task.id,
+            entity_name=updated_task.title,
+            description=f"Updated due date for \"{updated_task.title}\"",
+            project_id=updated_task.project_id
+        )
+        activities_created.append('due_date')
+
+    # Track completion changes
+    if 'completed' in update_data:
+        if update_data['completed']:
+            await activity_repo.create(
+                user_id=current_user.id,
+                action_type=ActivityActionType.TASK_COMPLETED,
+                entity_type="task",
+                entity_id=updated_task.id,
+                entity_name=updated_task.title,
+                description=f"Completed \"{updated_task.title}\"",
+                project_id=updated_task.project_id
+            )
+        else:
+            await activity_repo.create(
+                user_id=current_user.id,
+                action_type=ActivityActionType.TASK_UPDATED,
+                entity_type="task",
+                entity_id=updated_task.id,
+                entity_name=updated_task.title,
+                description=f"Reopened \"{updated_task.title}\"",
+                project_id=updated_task.project_id
+            )
+        activities_created.append('completed')
+
+    # Track description changes
+    if 'description' in update_data:
+        await activity_repo.create(
+            user_id=current_user.id,
+            action_type=ActivityActionType.TASK_UPDATED,
+            entity_type="task",
+            entity_id=updated_task.id,
+            entity_name=updated_task.title,
+            description=f"Updated description for \"{updated_task.title}\"",
+            project_id=updated_task.project_id
+        )
+        activities_created.append('description')
+
+    # Create a generic update activity for any other changes not explicitly tracked
+    other_changes = set(update_data.keys()) - set(activities_created)
+    if other_changes and len(other_changes) > 0:
         await activity_repo.create(
             user_id=current_user.id,
             action_type=ActivityActionType.TASK_UPDATED,
@@ -467,8 +557,10 @@ class CommentResponse(BaseModel):
     id: str
     content: str
     user_id: str
-    user_name: str
+    user: Optional[dict] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    edited: Optional[bool] = False
     
     @classmethod
     def from_comment(cls, comment: TaskComment, user: User):
@@ -476,8 +568,16 @@ class CommentResponse(BaseModel):
             id=str(comment.id),
             content=comment.content or "",
             user_id=str(comment.user_id),
-            user_name=user.full_name or user.username,
-            created_at=comment.created_at
+            user={
+                "id": str(user.id),
+                "email": user.email,
+                "username": user.username,
+                "full_name": user.full_name,
+                "avatar_url": user.avatar_url
+            } if user else None,
+            created_at=comment.created_at,
+            updated_at=comment.updated_at,
+            edited=comment.updated_at is not None and comment.updated_at > comment.created_at
         )
 
 
@@ -559,3 +659,419 @@ async def add_task_comment(
     
     logger.info(f"Comment added successfully to task {task_id}")
     return CommentResponse.from_comment(comment, current_user)
+
+
+@router.put("/{task_id}/comments/{comment_id}", response_model=CommentResponse)
+async def update_task_comment(
+    task_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    request: CommentCreateRequest,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Update an existing comment on a task.
+    Only the comment author can update their comment.
+    """
+    logger.info(f"Updating comment {comment_id} on task {task_id}")
+    
+    # Check task access
+    await TaskPermissionChecker.check_task_access(
+        task_id=task_id,
+        user_id=current_user.id,
+        session=session,
+        require_ownership=False
+    )
+    
+    # Get the comment and verify ownership
+    stmt = select(TaskComment).where(
+        TaskComment.id == comment_id,
+        TaskComment.task_id == task_id,
+        TaskComment.is_deleted == False
+    )
+    result = await session.execute(stmt)
+    comment = result.scalar_one_or_none()
+    
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    if comment.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own comments")
+    
+    # Update the comment
+    comment.content = request.content
+    comment.updated_at = datetime.utcnow()
+    
+    await session.commit()
+    await session.refresh(comment)
+    
+    logger.info(f"Comment {comment_id} updated successfully")
+    return CommentResponse.from_comment(comment, current_user)
+
+
+@router.delete("/{task_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_comment(
+    task_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Delete a comment from a task.
+    Only the comment author or task owner can delete comments.
+    """
+    logger.info(f"Deleting comment {comment_id} from task {task_id}")
+    
+    # Get the task to check ownership
+    task = await TaskPermissionChecker.check_task_access(
+        task_id=task_id,
+        user_id=current_user.id,
+        session=session,
+        require_ownership=False
+    )
+    
+    # Get the comment
+    stmt = select(TaskComment).where(
+        TaskComment.id == comment_id,
+        TaskComment.task_id == task_id,
+        TaskComment.is_deleted == False
+    )
+    result = await session.execute(stmt)
+    comment = result.scalar_one_or_none()
+    
+    if not comment:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    
+    # Check if user can delete (comment author or task owner)
+    if comment.user_id != current_user.id and task.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete your own comments or comments on your tasks")
+    
+    # Soft delete the comment
+    comment.is_deleted = True
+    comment.updated_at = datetime.utcnow()
+    
+    await session.commit()
+    
+    logger.info(f"Comment {comment_id} deleted successfully")
+
+
+# Activity Response Model
+class ActivityResponse(BaseModel):
+    id: str
+    type: str
+    action: str
+    user: dict
+    created_at: datetime
+    details: Optional[dict] = None
+    
+    @classmethod
+    def from_activity(cls, activity: UserActivity):
+        return cls(
+            id=str(activity.id),
+            type=activity.action_type.value if activity.action_type else "unknown",
+            action=activity.description or "",
+            user={
+                "id": str(activity.user_id),
+                "full_name": activity.user.full_name if activity.user else None,
+                "email": activity.user.email if activity.user else None
+            } if activity.user else {},
+            created_at=activity.created_at,
+            details=activity.activity_metadata
+        )
+
+
+@router.get("/{task_id}/activities", response_model=List[ActivityResponse])
+async def get_task_activities(
+    task_id: uuid.UUID,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Get all activities for a specific task.
+    """
+    logger.info(f"Getting activities for task {task_id}")
+    
+    # Check task access
+    await TaskPermissionChecker.check_task_access(
+        task_id=task_id,
+        user_id=current_user.id,
+        session=session,
+        require_ownership=False
+    )
+    
+    # Get activities for this task
+    stmt = (
+        select(UserActivity)
+        .join(User, UserActivity.user_id == User.id)
+        .where(UserActivity.entity_id == task_id)
+        .order_by(UserActivity.created_at.desc())
+    )
+    
+    result = await session.execute(stmt)
+    activities = result.scalars().all()
+    
+    # Transform to response model
+    activity_responses = []
+    for activity in activities:
+        # Fetch user data for each activity
+        user_stmt = select(User).where(User.id == activity.user_id)
+        user_result = await session.execute(user_stmt)
+        activity.user = user_result.scalar_one_or_none()
+        activity_responses.append(ActivityResponse.from_activity(activity))
+    
+    logger.info(f"Found {len(activity_responses)} activities for task {task_id}")
+    return activity_responses
+
+
+# Attachment Models
+class AttachmentResponse(BaseModel):
+    id: str
+    name: str
+    size: int
+    type: str
+    url: str
+    uploaded_by: dict
+    uploaded_at: datetime
+    
+    @classmethod
+    def from_attachment(cls, attachment: TaskAttachment, base_url: str = "", user: Optional[User] = None):
+        return cls(
+            id=str(attachment.id),
+            name=attachment.original_filename,
+            size=attachment.file_size or 0,
+            type=attachment.file_type or "application/octet-stream",
+            url=f"http://localhost:8000/api/v1/tasks/attachments/{attachment.id}/download",
+            uploaded_by={
+                "id": str(attachment.uploaded_by_id),
+                "full_name": user.full_name if user else None,
+                "email": user.email if user else None
+            } if user else {"id": str(attachment.uploaded_by_id)},
+            uploaded_at=attachment.created_at
+        )
+
+
+@router.get("/{task_id}/attachments", response_model=List[AttachmentResponse])
+async def get_task_attachments(
+    task_id: uuid.UUID,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Get all attachments for a specific task.
+    """
+    logger.info(f"Getting attachments for task {task_id}")
+    
+    # Check task access
+    await TaskPermissionChecker.check_task_access(
+        task_id=task_id,
+        user_id=current_user.id,
+        session=session,
+        require_ownership=False
+    )
+    
+    # Get attachments for this task
+    stmt = (
+        select(TaskAttachment)
+        .join(User, TaskAttachment.uploaded_by_id == User.id)
+        .where(
+            TaskAttachment.task_id == task_id,
+            TaskAttachment.is_deleted == False
+        )
+        .order_by(TaskAttachment.created_at.desc())
+    )
+    
+    result = await session.execute(stmt)
+    attachments = result.scalars().all()
+    
+    # Transform to response model
+    attachment_responses = []
+    for attachment in attachments:
+        # Fetch user data for each attachment
+        user_stmt = select(User).where(User.id == attachment.uploaded_by_id)
+        user_result = await session.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+        attachment_responses.append(AttachmentResponse.from_attachment(attachment, user=user))
+    
+    logger.info(f"Found {len(attachment_responses)} attachments for task {task_id}")
+    return attachment_responses
+
+
+@router.post("/{task_id}/attachments", response_model=List[AttachmentResponse], status_code=status.HTTP_201_CREATED)
+async def upload_task_attachments(
+    task_id: uuid.UUID,
+    files: List[UploadFile] = File(...),
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Upload one or more attachments to a task.
+    """
+    logger.info(f"Uploading {len(files)} attachments to task {task_id}")
+    
+    # Check task access
+    task = await TaskPermissionChecker.check_task_access(
+        task_id=task_id,
+        user_id=current_user.id,
+        session=session,
+        require_ownership=False
+    )
+    
+    # Create upload directory if it doesn't exist
+    upload_dir = Path("uploads") / "tasks" / str(task_id)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    
+    uploaded_attachments = []
+    
+    for file in files:
+        # Generate unique filename
+        file_id = uuid.uuid4()
+        file_extension = Path(file.filename).suffix if file.filename else ""
+        stored_filename = f"{file_id}{file_extension}"
+        file_path = upload_dir / stored_filename
+        
+        # Save file to disk
+        async with aiofiles.open(file_path, 'wb') as f:
+            content = await file.read()
+            await f.write(content)
+        
+        # Create attachment record
+        attachment = TaskAttachment(
+            task_id=task_id,
+            uploaded_by_id=current_user.id,
+            filename=stored_filename,
+            original_filename=file.filename or "unnamed",
+            storage_path=str(file_path),
+            file_size=len(content),
+            file_type=file.content_type or "application/octet-stream",
+            file_extension=file_extension,
+            created_at=datetime.utcnow()
+        )
+        
+        session.add(attachment)
+        uploaded_attachments.append(attachment)
+    
+    # Commit all attachments
+    await session.commit()
+    
+    # Refresh and prepare response
+    attachment_responses = []
+    for attachment in uploaded_attachments:
+        await session.refresh(attachment)
+        # Fetch user data
+        user_stmt = select(User).where(User.id == attachment.uploaded_by_id)
+        user_result = await session.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+        attachment_responses.append(AttachmentResponse.from_attachment(attachment, user=user))
+    
+    # Create activity for attachment upload
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.FILE_ATTACHED,
+        entity_type="task",
+        entity_id=task.id,
+        entity_name=task.title,
+        description=f"Attached {len(files)} file(s) to \"{task.title}\"",
+        project_id=task.project_id
+    )
+    
+    logger.info(f"Successfully uploaded {len(files)} attachments to task {task_id}")
+    return attachment_responses
+
+
+@router.delete("/{task_id}/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task_attachment(
+    task_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Delete an attachment from a task.
+    Only the uploader or task owner can delete attachments.
+    """
+    logger.info(f"Deleting attachment {attachment_id} from task {task_id}")
+    
+    # Get the task to check ownership
+    task = await TaskPermissionChecker.check_task_access(
+        task_id=task_id,
+        user_id=current_user.id,
+        session=session,
+        require_ownership=False
+    )
+    
+    # Get the attachment
+    stmt = select(TaskAttachment).where(
+        TaskAttachment.id == attachment_id,
+        TaskAttachment.task_id == task_id,
+        TaskAttachment.is_deleted == False
+    )
+    result = await session.execute(stmt)
+    attachment = result.scalar_one_or_none()
+    
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    
+    # Check if user can delete (uploader or task owner)
+    if attachment.uploaded_by_id != current_user.id and task.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only delete your own attachments or attachments on your tasks")
+    
+    # Soft delete the attachment
+    attachment.is_deleted = True
+    attachment.deleted_at = datetime.utcnow()
+    
+    # Optionally delete the physical file
+    if attachment.storage_path and os.path.exists(attachment.storage_path):
+        try:
+            os.remove(attachment.storage_path)
+        except Exception as e:
+            logger.error(f"Failed to delete physical file {attachment.storage_path}: {e}")
+    
+    await session.commit()
+    
+    logger.info(f"Attachment {attachment_id} deleted successfully")
+
+
+@router.get("/attachments/{attachment_id}/download")
+async def download_attachment(
+    attachment_id: uuid.UUID,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Download an attachment file.
+    """
+    from fastapi.responses import FileResponse
+    
+    logger.info(f"Downloading attachment {attachment_id}")
+    
+    # Get the attachment
+    stmt = select(TaskAttachment).where(
+        TaskAttachment.id == attachment_id,
+        TaskAttachment.is_deleted == False
+    )
+    result = await session.execute(stmt)
+    attachment = result.scalar_one_or_none()
+    
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    
+    # Check if the user has access to the task
+    await TaskPermissionChecker.check_task_access(
+        task_id=attachment.task_id,
+        user_id=current_user.id,
+        session=session,
+        require_ownership=False
+    )
+    
+    # Check if file exists
+    if not attachment.storage_path or not os.path.exists(attachment.storage_path):
+        raise HTTPException(status_code=404, detail="File not found on server")
+
+    logger.info(f"Serving attachment file: {attachment.original_filename}")
+
+    return FileResponse(
+        path=attachment.storage_path,
+        filename=attachment.original_filename,
+        media_type=attachment.file_type or "application/octet-stream"
+    )

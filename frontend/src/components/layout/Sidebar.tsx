@@ -17,35 +17,23 @@ import {
   MenuDivider,
   useDisclosure,
   Drawer,
-  DrawerBody,
-  DrawerFooter,
-  DrawerHeader,
   DrawerOverlay,
   DrawerContent,
-  DrawerCloseButton,
   useBreakpointValue,
-  Flex,
 } from "@chakra-ui/react";
 import {
   FiHome,
   FiFolder,
   FiCalendar,
-  FiMessageSquare,
-  FiFile,
-  FiFileText,
-  FiSettings,
-  FiHelpCircle,
   FiPlus,
   FiSun,
   FiMoon,
   FiLogOut,
   FiUser,
-  FiMenu,
   FiX,
   FiChevronLeft,
   FiChevronRight,
   FiCheckSquare,
-  FiGrid,
   FiTag,
 } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -79,7 +67,7 @@ function SidebarItem({
       variant="ghost"
       w="full"
       justifyContent={isCollapsed ? "center" : "flex-start"}
-      px={3}
+      px={isCollapsed ? 2 : 3}
       py={2}
       h="auto"
       fontWeight="medium"
@@ -91,24 +79,37 @@ function SidebarItem({
       _hover={{
         bg: isActive
           ? { base: "primary.50", _dark: "primary.900" }
-          : { base: "gray.100", _dark: "gray.700" },
+          : { base: "gray.100", _dark: "dark.bg.hover" },
+      }}
+      _active={{
+        bg: isActive
+          ? { base: "primary.100", _dark: "primary.800" }
+          : { base: "gray.200", _dark: "gray.600" },
       }}
       onClick={onClick}
       title={isCollapsed ? label : undefined}
+      overflow="hidden"
+      whiteSpace="nowrap"
     >
       <HStack
-        spacing={3}
+        spacing={isCollapsed ? 0 : 3}
         w="full"
         justify={isCollapsed ? "center" : "flex-start"}
       >
-        <Icon as={icon} boxSize={4} />
+        <Icon as={icon} boxSize={4} flexShrink={0} />
         {!isCollapsed && (
           <>
-            <Text flex={1} textAlign="left">
+            <Text flex={1} textAlign="left" noOfLines={1}>
               {label}
             </Text>
             {badge && (
-              <Badge colorScheme="gray" variant="subtle" fontSize="xs" px={2}>
+              <Badge
+                colorScheme="gray"
+                variant="subtle"
+                fontSize="xs"
+                px={2}
+                flexShrink={0}
+              >
                 {badge}
               </Badge>
             )}
@@ -190,21 +191,29 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     );
   };
 
-  const SidebarContent = () => (
+  const SidebarContent = ({
+    onCloseMobile,
+  }: {
+    onCloseMobile?: () => void;
+  }) => (
     <Box
       as="aside"
       w={{ base: "full", lg: isCollapsed ? "60px" : "280px" }}
+      minW={{ base: "full", lg: isCollapsed ? "60px" : "280px" }}
+      maxW={{ base: "full", lg: isCollapsed ? "60px" : "280px" }}
       bg="white"
       _dark={{ bg: "dark.bg.secondary" }}
-      // borderRight={{ base: "none", lg: "1px" }}
-      borderRightColor="dark.border.subtle"
+      borderRight="1px solid"
+      borderRightColor={{ base: "gray.200", _dark: "dark.border.subtle" }}
       h="100vh"
       position={{ base: "relative", lg: "sticky" }}
       top="0"
       overflowY="auto"
+      overflowX="hidden"
       display="flex"
       flexDirection="column"
-      transition="width 0.3s"
+      transition="all 0.3s ease"
+      flexShrink={0}
     >
       {/* Logo/Brand */}
       <HStack
@@ -217,14 +226,26 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             TaskHub
           </Text>
         )}
-        <IconButton
-          aria-label="Toggle sidebar"
-          icon={<Icon as={isCollapsed ? FiChevronRight : FiChevronLeft} />}
-          size="sm"
-          variant="ghost"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          position={isCollapsed ? "relative" : "relative"}
-        />
+        {/* Desktop toggle button */}
+        {!isMobile && (
+          <IconButton
+            aria-label="Toggle sidebar"
+            icon={<Icon as={isCollapsed ? FiChevronRight : FiChevronLeft} />}
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+          />
+        )}
+        {/* Mobile close button */}
+        {isMobile && onCloseMobile && (
+          <IconButton
+            aria-label="Close menu"
+            icon={<Icon as={FiX} />}
+            size="sm"
+            variant="ghost"
+            onClick={onCloseMobile}
+          />
+        )}
       </HStack>
 
       {/* Main Navigation */}
@@ -236,7 +257,10 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             label={item.label}
             isActive={isActive(item.path)}
             badge={item.badge}
-            onClick={() => navigate(item.path)}
+            onClick={() => {
+              navigate(item.path);
+              if (isMobile && onCloseMobile) onCloseMobile();
+            }}
             isCollapsed={isCollapsed}
           />
         ))}
@@ -246,12 +270,13 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       {/* Projects Section */}
       {!isCollapsed && (
-        <Box px={4}>
+        <Box px={4} overflow="hidden">
           <HStack justify="space-between" mb={3}>
             <Text
               fontSize="sm"
               fontWeight="semibold"
               color={{ base: "gray.600", _dark: "gray.400" }}
+              noOfLines={1}
             >
               Projects
             </Text>
@@ -278,9 +303,12 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
                   py={2}
                   spacing={3}
                   cursor="pointer"
-                  _hover={{ bg: { base: "gray.50", _dark: "gray.700" } }}
+                  _hover={{ bg: { base: "gray.50", _dark: "dark.bg.hover" } }}
                   borderRadius="md"
-                  onClick={() => navigate(`/projects/${project.id}`)}
+                  onClick={() => {
+                    navigate(`/projects/${project.id}`);
+                    if (isMobile && onCloseMobile) onCloseMobile();
+                  }}
                 >
                   <Box
                     w={3}
@@ -312,9 +340,12 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         mt="auto"
         p={isCollapsed ? 2 : 4}
         borderTop="1px"
-        borderTopColor="dark.border.subtle"
+        borderTopColor={{ base: "gray.200", _dark: "dark.border.subtle" }}
       >
-        <Menu placement="top-start">
+        <Menu
+          placement={isCollapsed ? "right-start" : "top-start"}
+          offset={isCollapsed ? [0, 10] : undefined}
+        >
           <MenuButton
             as={Button}
             variant="ghost"
@@ -322,12 +353,24 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
             h="auto"
             p={isCollapsed ? 2 : 3}
             justifyContent={isCollapsed ? "center" : "flex-start"}
+            _hover={{
+              bg: { base: "gray.100", _dark: "dark.bg.hover" },
+            }}
           >
             <HStack spacing={3} justify={isCollapsed ? "center" : "flex-start"}>
               <Avatar
                 size="sm"
                 name={user?.full_name || user?.email || "User"}
-                src={user?.avatar_url}
+                src={
+                  user?.avatar_url
+                    ? user.avatar_url.startsWith("http")
+                      ? user.avatar_url
+                      : `${import.meta.env.VITE_API_URL || ""}${
+                          user.avatar_url
+                        }`
+                    : undefined
+                }
+                bg={!user?.avatar_url ? "primary.500" : undefined}
               />
               {!isCollapsed && (
                 <Box flex={1} textAlign="left">
@@ -341,18 +384,57 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               )}
             </HStack>
           </MenuButton>
-          <MenuList>
-            <MenuItem icon={<FiUser />} onClick={() => navigate("/profile")}>
-              Profile
+          <MenuList
+            minW={isCollapsed ? "200px" : "auto"}
+            boxShadow="xl"
+            borderRadius="lg"
+            overflow="hidden"
+            bg={{ base: "white", _dark: "dark.bg.tertiary" }}
+            borderColor={{ base: "gray.200", _dark: "dark.border.subtle" }}
+            border="1px solid"
+          >
+            {/* User Info Header in Menu */}
+            {isCollapsed && (
+              <>
+                <Box px={4} py={3} bg={{ base: "gray.50", _dark: "gray.800" }}>
+                  <VStack align="start" spacing={1}>
+                    <Text fontSize="sm" fontWeight="semibold">
+                      {user?.full_name || "User"}
+                    </Text>
+                    <Text fontSize="xs" color="gray.500">
+                      {user?.email}
+                    </Text>
+                  </VStack>
+                </Box>
+                <MenuDivider />
+              </>
+            )}
+
+            <MenuItem
+              icon={<FiUser />}
+              onClick={() => navigate("/profile")}
+              _hover={{ bg: { base: "gray.50", _dark: "dark.bg.hover" } }}
+              color={{ base: "gray.700", _dark: "gray.300" }}
+            >
+              Account Settings
             </MenuItem>
             <MenuItem
-              icon={<FiSettings />}
-              onClick={() => navigate("/settings")}
+              icon={colorMode === "light" ? <FiMoon /> : <FiSun />}
+              onClick={toggleColorMode}
+              _hover={{ bg: { base: "gray.50", _dark: "dark.bg.hover" } }}
+              color={{ base: "gray.700", _dark: "gray.300" }}
             >
-              Settings
+              {colorMode === "light" ? "Dark Mode" : "Light Mode"}
             </MenuItem>
-            <MenuDivider />
-            <MenuItem icon={<FiLogOut />} onClick={handleLogout}>
+            <MenuDivider
+              borderColor={{ base: "gray.200", _dark: "dark.border.subtle" }}
+            />
+            <MenuItem
+              icon={<FiLogOut />}
+              onClick={handleLogout}
+              color="red.500"
+              _hover={{ bg: { base: "red.50", _dark: "red.900" } }}
+            >
               Logout
             </MenuItem>
           </MenuList>
@@ -384,8 +466,7 @@ export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         >
           <DrawerOverlay />
           <DrawerContent>
-            <DrawerCloseButton />
-            <SidebarContent />
+            <SidebarContent onCloseMobile={onClose} />
           </DrawerContent>
         </Drawer>
       </>

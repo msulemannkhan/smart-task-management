@@ -68,6 +68,7 @@ class UserResponse(BaseModel):
     username: str = Field(..., description="Username")
     full_name: Optional[str] = Field(None, description="Full name")
     avatar_url: Optional[str] = Field(None, description="Avatar URL")
+    bio: Optional[str] = Field(None, description="User bio")
     is_active: bool = Field(..., description="Is user active")
     created_at: str = Field(..., description="Account creation date")
 

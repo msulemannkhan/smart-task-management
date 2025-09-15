@@ -102,7 +102,6 @@ export const theme = extendTheme({
           transition: 'all 0.2s ease',
           _hover: {
             bg: colorMode === 'dark' ? 'dark.bg.hover' : 'gray.50',
-            transform: 'translateY(-2px)',
             boxShadow: colorMode === 'dark' ? 'lg' : 'lg',
             borderColor: colorMode === 'dark' ? 'dark.border.strong' : 'gray.300'
           }
@@ -117,7 +116,6 @@ export const theme = extendTheme({
             borderRadius: 'xl',
             border: '1px solid',
             _hover: {
-              transform: 'translateY(-4px)',
               boxShadow: colorMode === 'dark' ? 'xl' : 'xl',
               borderColor: colorMode === 'dark' ? 'dark.border.strong' : 'gray.300'
             }
@@ -134,7 +132,6 @@ export const theme = extendTheme({
             transition: 'all 0.3s ease',
             _hover: {
               bg: colorMode === 'dark' ? 'dark.bg.hover' : 'gray.50',
-              transform: 'translateY(-2px)',
               boxShadow: colorMode === 'dark' ? 'md' : 'lg',
               borderColor: colorMode === 'dark' ? 'primary.400' : 'primary.300'
             }
@@ -229,11 +226,9 @@ export const theme = extendTheme({
         fontWeight: 'medium',
         transition: 'all 0.2s ease',
         _hover: {
-          transform: 'translateY(-1px)',
           boxShadow: 'lg'
         },
         _active: {
-          transform: 'translateY(0)',
           boxShadow: 'md'
         }
       }),
@@ -249,16 +244,14 @@ export const theme = extendTheme({
         ghost: ({ colorMode }) => ({
           color: colorMode === 'dark' ? 'gray.300' : 'gray.700',
           _hover: {
-            bg: colorMode === 'dark' ? 'dark.bg.hover' : 'gray.100',
-            transform: 'translateY(-1px)'
+            bg: colorMode === 'dark' ? 'dark.bg.hover' : 'gray.100'
           }
         }),
         outline: ({ colorMode }) => ({
           borderColor: colorMode === 'dark' ? 'dark.border.subtle' : 'gray.200',
           _hover: {
             borderColor: 'primary.500',
-            bg: colorMode === 'dark' ? 'dark.bg.hover' : 'primary.50',
-            transform: 'translateY(-1px)'
+            bg: colorMode === 'dark' ? 'dark.bg.hover' : 'primary.50'
           }
         })
       }

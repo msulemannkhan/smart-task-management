@@ -63,6 +63,7 @@ class AuthResponseFormatter:
             "username": user.username,
             "full_name": user.full_name,
             "avatar_url": getattr(user, 'avatar_url', None),
+            "bio": getattr(user, 'bio', None),
             "is_active": user.is_active,
             "created_at": user.created_at.isoformat()
         }

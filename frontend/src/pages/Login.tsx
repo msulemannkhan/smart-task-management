@@ -248,7 +248,6 @@ export function Login() {
                     fontWeight="semibold"
                     rightIcon={!isLoading ? <Icon as={FiArrowRight} boxSize={4} /> : undefined}
                     _hover={{
-                      transform: "translateY(-1px)",
                       boxShadow: "xl"
                     }}
                     transition="all 0.2s"

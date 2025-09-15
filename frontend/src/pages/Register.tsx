@@ -405,7 +405,6 @@ export function Register() {
                   opacity={!isFormValid ? 0.6 : 1}
                   cursor={!isFormValid ? "not-allowed" : "pointer"}
                     _hover={isFormValid ? {
-                      transform: "translateY(-1px)",
                       boxShadow: "xl"
                     } : {}}
                     transition="all 0.2s"

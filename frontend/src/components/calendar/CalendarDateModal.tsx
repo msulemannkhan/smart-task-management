@@ -76,7 +76,7 @@ export function CalendarDateModal({
         borderRadius="2xl"
         border="1px"
         borderColor={borderColor}
-        maxH="80vh"
+        maxH="90vh"
       >
         <ModalHeader pb={2}>
           <HStack spacing={3}>
@@ -112,8 +112,10 @@ export function CalendarDateModal({
             {/* Tasks List */}
             {tasks.length > 0 ? (
               <Box
-                maxH="400px"
+                maxH="300px"
                 overflowY="auto"
+                overflowX="hidden"
+                px={1}
                 css={{
                   "&::-webkit-scrollbar": {
                     width: "6px",
@@ -130,7 +132,7 @@ export function CalendarDateModal({
                   },
                 }}
               >
-                <VStack spacing={3} align="stretch">
+                <VStack spacing={3} align="stretch" pr={2}>
                   {tasks.map((task) => {
                     const taskColor = getTaskColor(task);
                     const statusColor = getStatusColor(task.status || "todo");
@@ -147,7 +149,6 @@ export function CalendarDateModal({
                         _hover={{
                           bg: useColorModeValue("gray.100", "dark.bg.hover"),
                           borderColor: "primary.300",
-                          transform: "translateY(-1px)",
                         }}
                         transition="all 0.2s"
                         onClick={() => onViewTask(task)}

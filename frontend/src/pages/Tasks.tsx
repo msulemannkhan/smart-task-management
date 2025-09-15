@@ -111,9 +111,17 @@ export function Tasks() {
     })();
   }, []);
 
-  // Handle URL parameters for status filtering
+  // Handle URL parameters for status and project filtering
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+
+    // Handle project filter
+    const projectParam = params.get('project');
+    if (projectParam) {
+      setActiveProjectId(projectParam);
+    }
+
+    // Handle status filter
     const statusParam = params.get('status');
     if (statusParam) {
       // Map URL params to TaskStatus
@@ -126,7 +134,7 @@ export function Tasks() {
         'backlog': TaskStatus.BACKLOG,
         'cancelled': TaskStatus.CANCELLED,
       };
-      
+
       const mappedStatus = statusMap[statusParam];
       if (mappedStatus) {
         setSelectedStatuses([mappedStatus]);

@@ -86,11 +86,24 @@ export class TaskService {
     const perPage = Math.min(params?.per_page ?? 100, 100)
     let offset = 0
     const all: TasksResponse = { tasks: [], total: 0, limit: perPage, offset: 0, has_more: false }
+    const seenTaskIds = new Set<string>()
+
     // Loop with safety cap
     for (let i = 0; i < 20; i++) {
       const page = await this.getTasks({ ...params, per_page: perPage, offset })
-      all.tasks = all.tasks.concat(page.tasks)
+
+      // Filter out duplicates based on task ID
+      const uniqueTasks = page.tasks.filter(task => {
+        if (seenTaskIds.has(task.id)) {
+          return false
+        }
+        seenTaskIds.add(task.id)
+        return true
+      })
+
+      all.tasks = all.tasks.concat(uniqueTasks)
       all.total = page.total
+
       if (!page.has_more) {
         all.has_more = false
         break

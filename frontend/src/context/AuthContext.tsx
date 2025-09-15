@@ -90,6 +90,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const userData = await response.json()
+    // Ensure avatar_url is properly formatted
+    if (userData.avatar_url && !userData.avatar_url.startsWith('http')) {
+      userData.avatar_url = userData.avatar_url
+    }
     setUser(userData)
   }
 

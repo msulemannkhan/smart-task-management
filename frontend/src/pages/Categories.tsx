@@ -207,7 +207,6 @@ export function Categories() {
         transition="all 0.2s"
         _hover={{
           bg: hoverBg,
-          transform: "translateY(-1px)",
           boxShadow: "md",
         }}
       >
@@ -328,7 +327,6 @@ export function Categories() {
         position="relative"
         transition="all 0.2s"
         _hover={{
-          transform: "translateY(-4px)",
           boxShadow: "lg",
           cursor: "pointer",
         }}

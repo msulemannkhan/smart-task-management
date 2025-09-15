@@ -147,13 +147,34 @@ class TaskValidator:
                 )
         
         # Don't allow dates too far in the future (10 years)
-        max_future_date = datetime.utcnow().replace(year=datetime.utcnow().year + 10)
-        
-        if start_date and start_date > max_future_date:
-            raise ValidationError("Start date is too far in the future", "start_date")
-        
-        if due_date and due_date > max_future_date:
-            raise ValidationError("Due date is too far in the future", "due_date")
+        from datetime import timezone
+        now = datetime.utcnow()
+        max_future_date = now.replace(year=now.year + 10)
+
+        # Handle both timezone-aware and naive datetimes
+        if start_date:
+            # Make comparison datetime timezone-aware if start_date is aware
+            compare_date = max_future_date
+            if start_date.tzinfo is not None:
+                compare_date = max_future_date.replace(tzinfo=timezone.utc)
+            elif compare_date.tzinfo is not None:
+                # If max_future_date is aware but start_date is naive, make start_date aware
+                start_date = start_date.replace(tzinfo=timezone.utc)
+
+            if start_date > compare_date:
+                raise ValidationError("Start date is too far in the future", "start_date")
+
+        if due_date:
+            # Make comparison datetime timezone-aware if due_date is aware
+            compare_date = max_future_date
+            if due_date.tzinfo is not None:
+                compare_date = max_future_date.replace(tzinfo=timezone.utc)
+            elif compare_date.tzinfo is not None:
+                # If max_future_date is aware but due_date is naive, make due_date aware
+                due_date = due_date.replace(tzinfo=timezone.utc)
+
+            if due_date > compare_date:
+                raise ValidationError("Due date is too far in the future", "due_date")
     
     @staticmethod
     def validate_task_hierarchy(

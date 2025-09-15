@@ -131,11 +131,12 @@ class TaskRepository:
             raise ValueError(f"Task {task_id} not found or access denied")
         
         # Add history entry
+        import json
         history = TaskHistory(
             task_id=task_id,
             user_id=user_id,
             action="updated",
-            changes=update_data
+            changes_json=json.dumps(update_data, default=str)
         )
         self.session.add(history)
         
@@ -170,11 +171,12 @@ class TaskRepository:
             await self.update(task_id, update_data, user_id)
         
         # Add history entry
+        import json
         history = TaskHistory(
             task_id=task_id,
             user_id=user_id,
             action="deleted",
-            changes={"hard_delete": hard_delete}
+            changes_json=json.dumps({"hard_delete": hard_delete})
         )
         self.session.add(history)
         
@@ -261,15 +263,16 @@ class TaskRepository:
         
         # Add bulk history entry
         if affected_count > 0:
+            import json
             history = TaskHistory(
                 task_id=task_ids[0],  # Reference first task
                 user_id=user_id,
                 action="bulk_update",
-                changes={
+                changes_json=json.dumps({
                     "update_data": update_data,
                     "affected_ids": [str(id) for id in task_ids],
                     "affected_count": affected_count
-                }
+                }, default=str)
             )
             self.session.add(history)
         
@@ -449,6 +452,7 @@ class TaskRepository:
         # Build base query depending on project scope
         if project_id:
             # User can view all tasks in project if owner or member
+            # Use group_by to ensure unique tasks when user has multiple relationships
             stmt = (
                 select(Task)
                 .join(Project, Project.id == Task.project_id)
@@ -463,11 +467,13 @@ class TaskRepository:
                         )
                     )
                 )
+                .group_by(Task.id)
             )
         else:
             # No project filter: show tasks from all projects where user is a member, or tasks they created/assigned
+            # Use group_by to ensure unique tasks when user has multiple relationships
             stmt = (
-                select(Task).distinct()
+                select(Task)
                 .outerjoin(Project, Project.id == Task.project_id)
                 .outerjoin(ProjectMember, ProjectMember.project_id == Project.id)
                 .where(
@@ -481,6 +487,7 @@ class TaskRepository:
                         )
                     )
                 )
+                .group_by(Task.id)
             )
         
         # Apply filters

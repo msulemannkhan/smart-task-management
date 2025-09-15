@@ -493,7 +493,7 @@ export function Dashboard() {
                     )}
                   </Flex>
 
-                  <Box maxH="400px" overflowY="auto">
+                  <Box maxH="280px" overflowY="auto" pr={2}>
                     <VStack align="stretch" spacing={3}>
                       {activitiesLoading ? (
                         <>
@@ -502,7 +502,7 @@ export function Dashboard() {
                           <SkeletonText noOfLines={2} />
                         </>
                       ) : activities.length > 0 ? (
-                        activities.slice(0, 15).map((activity) => (
+                        activities.map((activity) => (
                           <HStack
                             key={activity.id}
                             spacing={3}

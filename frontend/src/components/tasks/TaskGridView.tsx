@@ -17,7 +17,15 @@ import {
   Tooltip,
 } from "@chakra-ui/react";
 import { useState, useEffect, useMemo } from "react";
-import { FiClock, FiMessageSquare, FiCalendar, FiChevronRight, FiChevronLeft, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import {
+  FiClock,
+  FiMessageSquare,
+  FiCalendar,
+  FiChevronRight,
+  FiChevronLeft,
+  FiChevronDown,
+  FiChevronUp,
+} from "react-icons/fi";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { useTask } from "../../context/TaskContext";
 import { TaskStatus, TaskPriority } from "../../types/task";
@@ -86,7 +94,6 @@ function GridTaskCard({ task }: { task: Task }) {
       _hover={{
         shadow: "md",
         borderColor: hoverBorderColor,
-        transform: "translateY(-2px)",
       }}
       cursor="pointer"
       transition="all 0.2s ease"
@@ -120,11 +127,7 @@ function GridTaskCard({ task }: { task: Task }) {
             {task.title}
           </Text>
           {task.description && (
-            <Text
-              fontSize="xs"
-              color={mutedColor}
-              noOfLines={1}
-            >
+            <Text fontSize="xs" color={mutedColor} noOfLines={1}>
               {task.description}
             </Text>
           )}
@@ -211,16 +214,22 @@ function GridTaskCard({ task }: { task: Task }) {
 }
 
 // Status Row Component
-function StatusGridRow({ row, onScroll }: { row: StatusRow; onScroll?: (status: TaskStatus, direction: 'left' | 'right') => void }) {
+function StatusGridRow({
+  row,
+  onScroll,
+}: {
+  row: StatusRow;
+  onScroll?: (status: TaskStatus, direction: "left" | "right") => void;
+}) {
   const [scrollPosition, setScrollPosition] = useState(0);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     // Load collapsed state from localStorage
     const saved = localStorage.getItem(`task-status-collapsed-${row.status}`);
-    return saved === 'true';
+    return saved === "true";
   });
-  
+
   const bgColor = useColorModeValue("gray.50", "gray.900");
   const headerBg = useColorModeValue("white", "gray.800");
   const borderColor = useColorModeValue("gray.200", "gray.700");
@@ -228,14 +237,17 @@ function StatusGridRow({ row, onScroll }: { row: StatusRow; onScroll?: (status: 
 
   // Save collapsed state to localStorage
   useEffect(() => {
-    localStorage.setItem(`task-status-collapsed-${row.status}`, isCollapsed.toString());
+    localStorage.setItem(
+      `task-status-collapsed-${row.status}`,
+      isCollapsed.toString()
+    );
   }, [isCollapsed, row.status]);
 
   // Calculate if we need pagination
   const tasksPerPage = 6; // 2 rows x 3 columns
   const totalPages = Math.ceil(row.tasks.length / tasksPerPage);
   const currentPage = Math.floor(scrollPosition / tasksPerPage);
-  
+
   // Get visible tasks
   const startIdx = currentPage * tasksPerPage;
   const visibleTasks = row.tasks.slice(startIdx, startIdx + tasksPerPage);
@@ -245,11 +257,13 @@ function StatusGridRow({ row, onScroll }: { row: StatusRow; onScroll?: (status: 
     setCanScrollRight(currentPage < totalPages - 1);
   }, [currentPage, totalPages]);
 
-  const handleScroll = (direction: 'left' | 'right') => {
-    if (direction === 'left' && canScrollLeft) {
+  const handleScroll = (direction: "left" | "right") => {
+    if (direction === "left" && canScrollLeft) {
       setScrollPosition(Math.max(0, scrollPosition - tasksPerPage));
-    } else if (direction === 'right' && canScrollRight) {
-      setScrollPosition(Math.min(row.tasks.length - 1, scrollPosition + tasksPerPage));
+    } else if (direction === "right" && canScrollRight) {
+      setScrollPosition(
+        Math.min(row.tasks.length - 1, scrollPosition + tasksPerPage)
+      );
     }
   };
 
@@ -300,7 +314,7 @@ function StatusGridRow({ row, onScroll }: { row: StatusRow; onScroll?: (status: 
               py={1}
               borderRadius="md"
             >
-              {row.tasks.length} {row.tasks.length === 1 ? 'task' : 'tasks'}
+              {row.tasks.length} {row.tasks.length === 1 ? "task" : "tasks"}
             </Badge>
           </HStack>
 
@@ -312,7 +326,7 @@ function StatusGridRow({ row, onScroll }: { row: StatusRow; onScroll?: (status: 
                 icon={<FiChevronLeft />}
                 size="xs"
                 variant="ghost"
-                onClick={() => handleScroll('left')}
+                onClick={() => handleScroll("left")}
                 isDisabled={!canScrollLeft}
               />
               <Text fontSize="xs" color={textColor}>
@@ -323,7 +337,7 @@ function StatusGridRow({ row, onScroll }: { row: StatusRow; onScroll?: (status: 
                 icon={<FiChevronRight />}
                 size="xs"
                 variant="ghost"
-                onClick={() => handleScroll('right')}
+                onClick={() => handleScroll("right")}
                 isDisabled={!canScrollRight}
               />
             </HStack>
@@ -335,7 +349,11 @@ function StatusGridRow({ row, onScroll }: { row: StatusRow; onScroll?: (status: 
       {!isCollapsed && (
         <Box p={4}>
           <Grid
-            templateColumns={{ base: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" }}
+            templateColumns={{
+              base: "1fr",
+              md: "repeat(2, 1fr)",
+              lg: "repeat(3, 1fr)",
+            }}
             gap={3}
           >
             {visibleTasks.map((task) => (
@@ -374,36 +392,37 @@ export function TaskGridView({
     try {
       setIsLoading(true);
       setError(null);
-      
+
       // Fetch all tasks first
       const response = await TaskService.getAllTasks({
         project_id: projectId,
         per_page: 100,
       });
-      
+
       let filteredTasks = response.tasks;
-      
+
       // Apply client-side search filter
       if (searchQuery && searchQuery.trim().length > 0) {
         const query = searchQuery.toLowerCase().trim();
-        filteredTasks = filteredTasks.filter(task => 
-          task.title.toLowerCase().includes(query) ||
-          (task.description && task.description.toLowerCase().includes(query))
+        filteredTasks = filteredTasks.filter(
+          (task) =>
+            task.title.toLowerCase().includes(query) ||
+            (task.description && task.description.toLowerCase().includes(query))
         );
       }
-      
+
       // Apply status filter
       if (selectedStatuses && selectedStatuses.length > 0) {
-        filteredTasks = filteredTasks.filter(task => 
+        filteredTasks = filteredTasks.filter((task) =>
           selectedStatuses.includes(task.status)
         );
       }
-      
+
       // Apply sorting
       if (sortBy) {
         filteredTasks = sortTasks(filteredTasks, sortBy);
       }
-      
+
       setTasks(filteredTasks);
     } catch (err) {
       const errorMessage =
@@ -481,13 +500,14 @@ export function TaskGridView({
     ];
 
     const rows: StatusRow[] = [];
-    
-    // Show selected statuses or default to TODO and IN_PROGRESS
-    const statusesToShow = selectedStatuses && selectedStatuses.length > 0
-      ? statusOrder.filter(status => selectedStatuses.includes(status))
-      : [TaskStatus.TODO, TaskStatus.IN_PROGRESS];
 
-    statusesToShow.forEach(status => {
+    // Show selected statuses or default to TODO and IN_PROGRESS
+    const statusesToShow =
+      selectedStatuses && selectedStatuses.length > 0
+        ? statusOrder.filter((status) => selectedStatuses.includes(status))
+        : [TaskStatus.TODO, TaskStatus.IN_PROGRESS];
+
+    statusesToShow.forEach((status) => {
       if (tasksByStatus[status] && tasksByStatus[status].length > 0) {
         rows.push({
           status,
@@ -545,12 +565,11 @@ export function TaskGridView({
         {statusRows.length === 0 ? (
           <Alert status="info">
             <AlertIcon />
-            No tasks in selected statuses. Try selecting different status filters.
+            No tasks in selected statuses. Try selecting different status
+            filters.
           </Alert>
         ) : (
-          statusRows.map((row) => (
-            <StatusGridRow key={row.status} row={row} />
-          ))
+          statusRows.map((row) => <StatusGridRow key={row.status} row={row} />)
         )}
       </VStack>
     </Box>

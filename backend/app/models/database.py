@@ -63,6 +63,8 @@ class ActivityActionType(str, Enum):
     STATUS_CHANGED = "status_changed"
     PRIORITY_CHANGED = "priority_changed"
     DUE_DATE_CHANGED = "due_date_changed"
+    FILE_ATTACHED = "file_attached"
+    FILE_REMOVED = "file_removed"
     
     # Project actions
     PROJECT_CREATED = "project_created"
