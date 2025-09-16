@@ -11,11 +11,11 @@ import {
   MenuList,
   MenuItem,
   MenuDivider,
-  Avatar,
 } from "@chakra-ui/react";
 import { FiMenu, FiSun, FiMoon, FiUser, FiSettings, FiLogOut } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { UserAvatar } from "../common/UserAvatar";
 
 interface MobileHeaderProps {
   onOpenSidebar: () => void;
@@ -73,10 +73,9 @@ export function MobileHeader({ onOpenSidebar }: MobileHeaderProps) {
               variant="ghost"
               size="sm"
             >
-              <Avatar
+              <UserAvatar
+                user={user}
                 size="sm"
-                name={user?.full_name || user?.email || "User"}
-                src={user?.avatar_url}
               />
             </MenuButton>
             <MenuList>

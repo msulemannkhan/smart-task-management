@@ -15,7 +15,6 @@ import {
   Flex,
   Button,
   useColorModeValue,
-  Avatar,
   AvatarGroup,
   Divider,
   IconButton,

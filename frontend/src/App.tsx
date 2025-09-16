@@ -31,18 +31,14 @@ const Dashboard = lazy(() =>
 const Tasks = lazy(() =>
   import("./pages/Tasks").then((m) => ({ default: m.Tasks }))
 );
-const TaskDetail = lazy(() =>
-  import("./pages/TaskDetail").then((m) => ({ default: m.TaskDetail }))
-);
+const TaskDetail = lazy(() => import("./pages/TaskDetail"));
 const Calendar = lazy(() =>
   import("./pages/Calendar").then((m) => ({ default: m.Calendar }))
 );
 const Projects = lazy(() =>
   import("./pages/Projects").then((m) => ({ default: m.Projects }))
 );
-const ProjectDetail = lazy(() =>
-  import("./pages/ProjectDetail").then((m) => ({ default: m.ProjectDetail }))
-);
+const ProjectDetail = lazy(() => import("./pages/ProjectDetail"));
 const Categories = lazy(() =>
   import("./pages/Categories").then((m) => ({ default: m.Categories }))
 );
@@ -149,7 +145,10 @@ function AppContent() {
                         />
                         <Route path="/categories" element={<Categories />} />
                         <Route path="/profile" element={<Profile />} />
-                        <Route path="/settings" element={<Navigate to="/profile" replace />} />
+                        <Route
+                          path="/settings"
+                          element={<Navigate to="/profile" replace />}
+                        />
                       </Routes>
                     </Box>
 
@@ -183,26 +182,26 @@ function App() {
                   toastOptions={{
                     duration: 4000,
                     style: {
-                      background: '#363636',
-                      color: '#fff',
-                      borderRadius: '8px',
+                      background: "#363636",
+                      color: "#fff",
+                      borderRadius: "8px",
                     },
                     success: {
                       style: {
-                        background: '#48bb78',
+                        background: "#48bb78",
                       },
                       iconTheme: {
-                        primary: '#fff',
-                        secondary: '#48bb78',
+                        primary: "#fff",
+                        secondary: "#48bb78",
                       },
                     },
                     error: {
                       style: {
-                        background: '#e53e3e',
+                        background: "#e53e3e",
                       },
                       iconTheme: {
-                        primary: '#fff',
-                        secondary: '#e53e3e',
+                        primary: "#fff",
+                        secondary: "#e53e3e",
                       },
                     },
                   }}

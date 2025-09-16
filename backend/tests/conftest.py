@@ -165,8 +165,8 @@ async def sample_task(
         priority=TaskPriority.MEDIUM,
         first_assigned_at=datetime.utcnow()  # ✅ Track when assigned
     )
-    # Set tags using the property
-    task.tags = ["test", "sample"]
+    # Set tags using the new method
+    task.set_tags(["test", "sample"])
     
     test_session.add(task)
     await test_session.commit()

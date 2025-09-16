@@ -10,7 +10,6 @@ import {
   VStack,
   HStack,
   Text,
-  Avatar,
   Badge,
   Select,
   FormControl,
@@ -38,6 +37,7 @@ import {
   useRemoveProjectMember,
 } from "../../hooks/useProjectMembers";
 import { useUsers } from "../../hooks/useUsers";
+import { Avatar } from "../common/Avatar";
 import type { ProjectMemberRole } from "../../services/projectMemberService";
 
 interface MembersDrawerProps {
@@ -285,8 +285,13 @@ export function MembersDrawer({
                       >
                         <HStack spacing={3}>
                           <Avatar
+                            src={member.user?.avatar_url}
+                            name={member.user?.full_name || member.user?.username}
+                            email={member.user?.email}
+                            id={member.user?.id}
                             size="sm"
-                            name={member.user?.full_name || member.user?.username || member.user?.email || "Unknown User"}
+                            showInitials={true}
+                            fallbackIcon={false}
                           />
                           <VStack align="start" spacing={0}>
                             <Text fontSize="sm" fontWeight="medium">

@@ -39,13 +39,29 @@ export class TaskService {
 
   // Create a new task
   static async createTask(taskData: CreateTaskRequest): Promise<Task> {
-    const response = await api.post('/tasks/', taskData)
+    // Format dates to YYYY-MM-DD if they exist
+    const formattedData = { ...taskData }
+    if (formattedData.start_date) {
+      formattedData.start_date = formattedData.start_date.split('T')[0]
+    }
+    if (formattedData.due_date) {
+      formattedData.due_date = formattedData.due_date.split('T')[0]
+    }
+    const response = await api.post('/tasks/', formattedData)
     return response.data
   }
 
   // Update an existing task
   static async updateTask(id: string, taskData: UpdateTaskRequest): Promise<Task> {
-    const response = await api.put(`/tasks/${id}`, taskData)
+    // Format dates to YYYY-MM-DD if they exist
+    const formattedData = { ...taskData }
+    if (formattedData.start_date) {
+      formattedData.start_date = formattedData.start_date.split('T')[0]
+    }
+    if (formattedData.due_date) {
+      formattedData.due_date = formattedData.due_date.split('T')[0]
+    }
+    const response = await api.put(`/tasks/${id}`, formattedData)
     return response.data
   }
 
@@ -60,19 +76,59 @@ export class TaskService {
   }
 
   // Get task statistics
-  static async getTaskStats(project_id?: string): Promise<{
+  static async getTaskStats(projectId?: string): Promise<{
     total: number
     completed: number
     in_progress: number
     todo: number
     overdue: number
     completion_rate: number
-    priority_breakdown: Record<string, number>
+    urgent?: number
+    high?: number
+    medium?: number
+    low?: number
+    priority_breakdown?: Record<string, number>
   }> {
-    const params = project_id ? { project_id } : {}
-    const response = await api.get('/tasks/stats', { params })
-    // Backend already returns the shape the Dashboard expects
-    return response.data
+    try {
+      const params = projectId ? { project_id: projectId } : {}
+      const response = await api.get('/tasks/stats', { params })
+      // Backend already returns the shape the Dashboard expects
+      return response.data
+    } catch (error: any) {
+      // Return default stats if endpoint not available
+      if (error?.response?.status === 404) {
+        // Get tasks and calculate stats manually
+        const tasksResponse = await this.getTasks({ project_id: projectId })
+        const tasks = tasksResponse.tasks || []
+
+        const stats = {
+          total: tasks.length,
+          todo: tasks.filter(t => t.status === 'todo').length,
+          in_progress: tasks.filter(t => t.status === 'in_progress').length,
+          completed: tasks.filter(t => t.status === 'completed').length,
+          overdue: tasks.filter(t => {
+            if (!t.due_date || t.status === 'completed') return false
+            return new Date(t.due_date) < new Date()
+          }).length,
+          urgent: tasks.filter(t => t.priority === 'urgent').length,
+          high: tasks.filter(t => t.priority === 'high').length,
+          medium: tasks.filter(t => t.priority === 'medium').length,
+          low: tasks.filter(t => t.priority === 'low').length,
+          completion_rate: tasks.length > 0
+            ? tasks.filter(t => t.status === 'completed').length / tasks.length
+            : 0,
+          priority_breakdown: {
+            urgent: tasks.filter(t => t.priority === 'urgent').length,
+            high: tasks.filter(t => t.priority === 'high').length,
+            medium: tasks.filter(t => t.priority === 'medium').length,
+            low: tasks.filter(t => t.priority === 'low').length
+          }
+        }
+
+        return stats
+      }
+      throw error
+    }
   }
 
   // Fetch all tasks by paging until has_more is false

@@ -75,10 +75,17 @@ async def create_task(
     repo = TaskRepository(session)
     task_data = request.dict()
     task_data["creator_id"] = current_user.id
-    
+
+    # Handle tags conversion
+    tags_data = task_data.pop("tags", None)
+
     # Create Task model instance from data
     from app.models.database import Task
     task = Task(**task_data)
+
+    # Set tags using the new method
+    if tags_data:
+        task.set_tags(tags_data)
     
     created_task = await repo.create(task)
     
@@ -309,12 +316,15 @@ async def update_task(
             update_data.get('due_date')
         )
     
+    # Get current task for validation
+    repo = TaskRepository(session)
+    current_task = await repo.get_by_id(task_id, current_user.id)
+
     # Validate completion if being updated
     if 'completed' in update_data:
-        TaskValidator.validate_task_completion(None, update_data['completed'])
-    
+        TaskValidator.validate_task_completion(current_task, update_data['completed'])
+
     # Update task
-    repo = TaskRepository(session)
     updated_task = await repo.update(task_id, update_data, current_user.id)
     
     # Create activities for each type of change

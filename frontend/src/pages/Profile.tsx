@@ -4,7 +4,6 @@ import {
   HStack,
   Heading,
   Text,
-  Avatar,
   Button,
   FormControl,
   FormLabel,
@@ -68,17 +67,19 @@ import {
 } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
 import useCustomToast from "../hooks/useToast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TaskService } from "../services/taskService";
 import { ActivityService } from "../services/activityService";
 import { DetailPanelSkeleton } from "../components/ui/SkeletonLoaders";
 import { UserService } from "../services/userService";
 import { useDropzone } from "react-dropzone";
 import { format } from "date-fns";
+import { Avatar } from "../components/common/Avatar";
 
 export function Profile() {
   const { user, token, updateUser } = useAuth();
   const toast = useCustomToast();
+  const queryClient = useQueryClient();
   const { colorMode, toggleColorMode } = useColorMode();
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -161,10 +162,10 @@ export function Profile() {
       setUploadingAvatar(true);
 
       try {
-        const result = await UserService.uploadAvatar(token!, file);
+        const result = await UserService.uploadAvatar(file);
         const avatarUrl = result.avatar_url.startsWith("http")
           ? result.avatar_url
-          : `http://localhost:8000${result.avatar_url}`;
+          : `${import.meta.env.VITE_API_URL || 'http://localhost:9200'}${result.avatar_url}`;
 
         setProfileData((prev) => ({ ...prev, avatar: avatarUrl }));
         setTempProfileData((prev) => ({ ...prev, avatar: avatarUrl }));
@@ -177,15 +178,16 @@ export function Profile() {
           });
         }
 
-        // Refresh the page to ensure avatar is updated everywhere
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ["user"] });
+        queryClient.invalidateQueries({ queryKey: ["profile"] });
+        queryClient.invalidateQueries({ queryKey: ["userActivities"] });
+        queryClient.invalidateQueries({ queryKey: ["tasks"] });
 
         toast.success("Avatar uploaded successfully");
-      } catch (error) {
+      } catch (error: any) {
         console.error("Avatar upload error:", error);
-        toast.error("Failed to upload avatar");
+        toast.error(error?.response?.data?.detail || "Failed to upload avatar");
       } finally {
         setUploadingAvatar(false);
       }
@@ -199,7 +201,7 @@ export function Profile() {
 
   const handleSaveProfile = async () => {
     try {
-      await UserService.updateProfile(token!, {
+      const updatedProfile = await UserService.updateProfile({
         full_name: tempProfileData.fullName,
         bio: tempProfileData.bio,
         department: tempProfileData.department,
@@ -207,22 +209,28 @@ export function Profile() {
         website: tempProfileData.website,
       });
 
-      setProfileData(tempProfileData);
+      setProfileData({
+        ...tempProfileData,
+        avatar: updatedProfile.avatar_url || tempProfileData.avatar
+      });
       setIsEditingProfile(false);
       toast.success("Profile updated successfully");
 
+      // Update the user context with the latest data
       if (user) {
         updateUser({
           ...user,
-          full_name: tempProfileData.fullName,
-          bio: tempProfileData.bio,
-          department: tempProfileData.department,
-          location: tempProfileData.location,
-          website: tempProfileData.website,
+          full_name: updatedProfile.full_name,
+          bio: updatedProfile.bio,
+          avatar_url: updatedProfile.avatar_url,
+          department: (updatedProfile as any).department,
+          location: (updatedProfile as any).location,
+          website: (updatedProfile as any).website,
         });
       }
-    } catch (error) {
-      toast.error("Failed to update profile");
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      toast.error(error?.response?.data?.detail || "Failed to update profile");
     }
   };
 
@@ -349,24 +357,23 @@ export function Profile() {
                                 _hover={{ opacity: 0.9 }}
                               >
                                 <input {...getInputProps()} />
-                                <Avatar
-                                  size="2xl"
-                                  name={profileData.fullName || user?.email}
-                                  src={
-                                    profileData.avatar
-                                      ? profileData.avatar.startsWith("http")
-                                        ? profileData.avatar
-                                        : `http://localhost:8000${profileData.avatar}`
-                                      : undefined
-                                  }
+                                <Box
                                   border="4px solid white"
-                                  bg={
-                                    !profileData.avatar
-                                      ? "purple.600"
-                                      : undefined
-                                  }
+                                  borderRadius="full"
                                   boxShadow="xl"
-                                />
+                                >
+                                  <Avatar
+                                    src={profileData.avatar || user?.avatar_url}
+                                    name={
+                                      profileData.fullName || user?.full_name
+                                    }
+                                    email={user?.email}
+                                    id={user?.id}
+                                    size="2xl"
+                                    showInitials={true}
+                                    fallbackIcon={false}
+                                  />
+                                </Box>
                                 {uploadingAvatar && (
                                   <Box
                                     position="absolute"

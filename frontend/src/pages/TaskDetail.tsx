@@ -1,147 +1,163 @@
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
-  Flex,
+  VStack,
+  HStack,
   Heading,
   Text,
   Button,
-  VStack,
-  HStack,
-  Badge,
+  IconButton,
+  Input,
   Textarea,
   Select,
-  Input,
-  Avatar,
-  IconButton,
-  useToast,
-  Spinner,
-  Alert,
-  AlertIcon,
-  Container,
-  Grid,
-  GridItem,
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem,
-  MenuDivider,
-  Progress,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
+  Badge,
   Divider,
-  Tooltip,
-  Tag,
-  TagLabel,
-  TagCloseButton,
   useDisclosure,
   Modal,
   ModalOverlay,
   ModalContent,
   ModalHeader,
-  ModalFooter,
   ModalBody,
+  ModalFooter,
   ModalCloseButton,
+  useColorModeValue,
+  useToast,
+  Flex,
+  Icon,
+  Tag,
+  TagLabel,
+  TagCloseButton,
+  Wrap,
+  WrapItem,
+  Card,
+  CardBody,
+  Tooltip,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
+  FormControl,
+  FormLabel,
+  InputGroup,
+  InputRightElement,
+  Progress,
+  Image,
+  SimpleGrid,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  Spinner,
+  Alert,
+  AlertIcon,
+  Tabs,
+  TabList,
+  TabPanels,
+  Tab,
+  TabPanel,
+  Avatar,
+  AvatarGroup,
   Skeleton,
   SkeletonText,
   SkeletonCircle,
-  Circle,
-  useColorModeValue,
-  Icon,
-  Card,
-  CardBody,
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  PopoverBody,
-  PopoverArrow,
-  PopoverCloseButton,
-  PopoverHeader,
-  ButtonGroup,
-  Wrap,
-  WrapItem,
+  Fade,
+  ScaleFade,
 } from "@chakra-ui/react";
 import {
   FiArrowLeft,
   FiEdit2,
   FiSave,
   FiX,
-  FiSend,
-  FiShare2,
+  FiTrash2,
   FiPaperclip,
+  FiClock,
   FiCalendar,
   FiUser,
-  FiTrash2,
-  FiBookmark,
-  FiLink,
+  FiFlag,
   FiMessageSquare,
   FiActivity,
-  FiCheckSquare,
-  FiMoreHorizontal,
-  FiChevronDown,
+  FiCheck,
   FiAlertCircle,
-  FiPlus,
-  FiFlag,
-  FiFolder,
-  FiFile,
-  FiUpload,
+  FiMoreVertical,
+  FiTag,
+  FiLink,
   FiDownload,
   FiEye,
+  FiPlus,
+  FiSend,
+  FiFile,
+  FiImage,
+  FiFileText,
+  FiCheckCircle,
+  FiShare2,
+  FiCopy,
+  FiRefreshCw,
 } from "react-icons/fi";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { format, formatDistanceToNow, isAfter } from "date-fns";
+import { motion } from "framer-motion";
+
+const MotionBox = motion(Box);
+const MotionCard = motion(Card);
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { TaskService } from "../services/taskService";
 import { ProjectService } from "../services/projectService";
-import { TaskStatus, TaskPriority, type Task, type User } from "../types/task";
+import type { Task } from "../types/task";
+import { TaskStatus, TaskPriority } from "../types/task";
 import { useUsers } from "../hooks/useUsers";
-import { useAuth } from "../context/AuthContext";
-import {
-  format,
-  formatDistanceToNow,
-  isBefore,
-  differenceInDays,
-} from "date-fns";
+import { UserAvatar } from "../components/common/UserAvatar";
 import api from "../services/api";
+import { AttachmentService, type Attachment } from "../services/attachmentService";
 
 interface Comment {
   id: string;
   content: string;
-  user_id: string;
-  user: User;
+  user: {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url?: string;
+  };
   created_at: string;
-  updated_at?: string;
-  edited?: boolean;
+  updated_at: string;
 }
 
 interface Activity {
   id: string;
-  type: string;
   action: string;
-  user: User;
+  user: {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url?: string;
+  };
   created_at: string;
-  details?: any;
+  details: Record<string, any>;
 }
 
-interface Attachment {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  url: string;
-  uploaded_by: User | any;
-  uploaded_at: string;
-}
 
 export function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
   const toast = useToast();
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -150,22 +166,16 @@ export function TaskDetail() {
   const [newComment, setNewComment] = useState("");
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editedCommentContent, setEditedCommentContent] = useState("");
-  const [activeTab, setActiveTab] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
-  
-  const {
-    isOpen: isDeleteOpen,
-    onOpen: onDeleteOpen,
-    onClose: onDeleteClose,
-  } = useDisclosure();
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(
+    null
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Enhanced color mode values for better dark mode support
   const bgColor = useColorModeValue("gray.50", "dark.bg.primary");
   const borderColor = useColorModeValue("gray.200", "dark.border.subtle");
-  const sidebarBg = useColorModeValue("white", "dark.bg.tertiary");
   const cardBg = useColorModeValue("white", "dark.bg.tertiary");
   const hoverBg = useColorModeValue("gray.50", "dark.bg.hover");
   const textColor = useColorModeValue("gray.900", "gray.100");
@@ -180,48 +190,40 @@ export function TaskDetail() {
     data: task,
     isLoading,
     error,
+    refetch: refetchTask,
   } = useQuery({
     queryKey: ["task", taskId],
-    queryFn: () => TaskService.getById(taskId!),
+    queryFn: () => TaskService.getTask(taskId!),
     enabled: !!taskId,
   });
 
-  // Fetch projects for dropdown
-  const { data: projectsData } = useQuery({
-    queryKey: ["projects"],
-    queryFn: ProjectService.list,
-  });
+  // Fetch users for assignment
+  const { data: users = [] } = useUsers();
 
   // Fetch comments
   const {
     data: comments = [],
+    isLoading: commentsLoading,
     refetch: refetchComments,
-    isLoading: isLoadingComments,
   } = useQuery({
-    queryKey: ["comments", taskId],
+    queryKey: ["task-comments", taskId],
     queryFn: async () => {
-      try {
-        const response = await api.get(`/tasks/${taskId}/comments`);
-        return response.data as Comment[];
-      } catch (error) {
-        console.error("Failed to fetch comments:", error);
-        return [];
-      }
+      const response = await api.get(`/tasks/${taskId}/comments`);
+      return response.data.comments || [];
     },
     enabled: !!taskId,
   });
 
   // Fetch activities
-  const { data: activities = [], isLoading: isLoadingActivities } = useQuery({
-    queryKey: ["activities", taskId],
+  const {
+    data: activities = [],
+    isLoading: activitiesLoading,
+    refetch: refetchActivities,
+  } = useQuery({
+    queryKey: ["task-activities", taskId],
     queryFn: async () => {
-      try {
-        const response = await api.get(`/tasks/${taskId}/activities`);
-        return response.data as Activity[];
-      } catch (error) {
-        // Activities might not be implemented yet
-        return [];
-      }
+      const response = await api.get(`/tasks/${taskId}/activities`);
+      return response.data.activities || [];
     },
     enabled: !!taskId,
   });
@@ -229,112 +231,59 @@ export function TaskDetail() {
   // Fetch attachments
   const {
     data: attachments = [],
+    isLoading: attachmentsLoading,
     refetch: refetchAttachments,
-    isLoading: isLoadingAttachments,
   } = useQuery({
-    queryKey: ["attachments", taskId],
-    queryFn: async () => {
-      try {
-        const response = await api.get(`/tasks/${taskId}/attachments`);
-        return response.data as Attachment[];
-      } catch (error) {
-        // Attachments might not be implemented yet
-        return [];
-      }
-    },
+    queryKey: ["task-attachments", taskId],
+    queryFn: () => AttachmentService.getTaskAttachments(taskId!),
     enabled: !!taskId,
   });
-
-  // Fetch available users for assignment
-  const { data: usersResponse } = useUsers();
-  const users = usersResponse?.users || [];
 
   // Update task mutation
   const updateTaskMutation = useMutation({
     mutationFn: (updates: Partial<Task>) =>
-      TaskService.update(taskId!, updates),
+      TaskService.updateTask(taskId!, updates),
     onSuccess: () => {
-      toast({
-        title: "Task updated successfully",
-        status: "success",
-        duration: 3000,
-      });
-      setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast({
+        title: "Task updated",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      setIsEditing(false);
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "Failed to update task",
-        description: error instanceof Error ? error.message : "Unknown error",
         status: "error",
         duration: 5000,
+        isClosable: true,
       });
     },
   });
 
   // Add comment mutation
   const addCommentMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const response = await api.post(`/tasks/${taskId}/comments`, { content });
-      return response.data;
-    },
+    mutationFn: (content: string) =>
+      api.post(`/tasks/${taskId}/comments`, { content }),
     onSuccess: () => {
-      setNewComment("");
       refetchComments();
+      setNewComment("");
       toast({
         title: "Comment added",
         status: "success",
         duration: 2000,
+        isClosable: true,
       });
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "Failed to add comment",
-        description: error instanceof Error ? error.message : "Unknown error",
         status: "error",
-        duration: 5000,
-      });
-    },
-  });
-
-  // Update comment mutation
-  const updateCommentMutation = useMutation({
-    mutationFn: async ({
-      commentId,
-      content,
-    }: {
-      commentId: string;
-      content: string;
-    }) => {
-      const response = await api.put(`/tasks/${taskId}/comments/${commentId}`, {
-        content,
-      });
-      return response.data;
-    },
-    onSuccess: () => {
-      setEditingComment(null);
-      setEditedCommentContent("");
-      refetchComments();
-      toast({
-        title: "Comment updated",
-        status: "success",
-        duration: 2000,
-      });
-    },
-  });
-
-  // Delete comment mutation
-  const deleteCommentMutation = useMutation({
-    mutationFn: async (commentId: string) => {
-      await api.delete(`/tasks/${taskId}/comments/${commentId}`);
-    },
-    onSuccess: () => {
-      refetchComments();
-      toast({
-        title: "Comment deleted",
-        status: "success",
-        duration: 2000,
+        duration: 3000,
+        isClosable: true,
       });
     },
   });
@@ -344,154 +293,125 @@ export function TaskDetail() {
     mutationFn: () => TaskService.deleteTask(taskId!),
     onSuccess: () => {
       toast({
-        title: "Task deleted successfully",
+        title: "Task deleted",
         status: "success",
         duration: 3000,
+        isClosable: true,
       });
-      navigate("/tasks");
+      navigate(-1);
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "Failed to delete task",
-        description: error instanceof Error ? error.message : "Unknown error",
         status: "error",
-        duration: 5000,
+        duration: 3000,
+        isClosable: true,
       });
     },
   });
 
-  // Initialize edited task when task data loads
-  useEffect(() => {
-    if (task && !isEditing) {
-      setEditedTask({
-        title: task.title,
-        description: task.description,
-        status: task.status,
-        priority: task.priority,
-        due_date: task.due_date,
-        project_id: task.project_id,
-        assignee_id: task.assignee_id,
-        tags: task.tags || [],
-      });
-    }
-  }, [task, isEditing]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isEditing) {
-        handleCancel();
-      }
-      if (e.metaKey && e.key === "Enter" && isEditing) {
-        handleSave();
-      }
-      if (e.key === "e" && !isEditing && !e.target) {
-        setIsEditing(true);
-      }
-    };
-    window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [isEditing]);
-
-  const handleSave = () => {
-    if (!editedTask.title?.trim()) {
+  // Upload attachments mutation
+  const uploadAttachmentsMutation = useMutation({
+    mutationFn: (files: File[]) =>
+      AttachmentService.uploadTaskAttachments(taskId!, files),
+    onSuccess: () => {
+      refetchAttachments();
       toast({
-        title: "Task title is required",
-        status: "error",
+        title: "Files uploaded successfully",
+        status: "success",
         duration: 3000,
+        isClosable: true,
       });
-      return;
-    }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to upload files",
+        description: error.response?.data?.detail || "Unknown error",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    },
+  });
 
-    updateTaskMutation.mutate(editedTask);
-  };
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const handleCancel = () => {
-    setIsEditing(false);
+  useEffect(() => {
     if (task) {
       setEditedTask({
         title: task.title,
         description: task.description,
         status: task.status,
         priority: task.priority,
-        due_date: task.due_date,
-        project_id: task.project_id,
-        assignee_id: task.assignee_id,
+        due_date: task.due_date ? task.due_date.split("T")[0] : undefined,
+        assignee_id: task.assignee?.id,
         tags: task.tags || [],
       });
     }
-  };
+  }, [task]);
 
-  const handleQuickUpdate = (field: string, value: any) => {
-    updateTaskMutation.mutate({ [field]: value });
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsUploading(true);
-    const formData = new FormData();
-    
-    for (let i = 0; i < files.length; i++) {
-      formData.append("files", files[i]);
+  const handleSave = () => {
+    if (!editedTask.title?.trim()) {
+      toast({
+        title: "Title is required",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
     }
 
-    try {
-      await api.post(`/tasks/${taskId}/attachments`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      refetchAttachments();
+    const updates = {
+      ...editedTask,
+      due_date: editedTask.due_date
+        ? new Date(editedTask.due_date).toISOString()
+        : undefined,
+    };
+
+    updateTaskMutation.mutate(updates);
+  };
+
+  const handleAddComment = () => {
+    if (!newComment.trim()) return;
+    addCommentMutation.mutate(newComment);
+  };
+
+  const handleShare = () => {
+    const taskUrl = `${window.location.origin}/tasks/${taskId}`;
+    navigator.clipboard.writeText(taskUrl).then(() => {
       toast({
-        title: `${files.length} file(s) uploaded successfully`,
+        title: "Link copied to clipboard",
         status: "success",
-        duration: 3000,
+        duration: 2000,
+        isClosable: true,
+      });
+    });
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetchTask(),
+        refetchComments(),
+        refetchActivities(),
+        refetchAttachments(),
+      ]);
+      toast({
+        title: "Data refreshed",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
       });
     } catch (error) {
       toast({
-        title: "Failed to upload files",
-        description: error instanceof Error ? error.message : "Unknown error",
+        title: "Failed to refresh data",
         status: "error",
-        duration: 5000,
+        duration: 3000,
+        isClosable: true,
       });
     } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-
-  const handleAddTag = () => {
-    if (!newTag.trim()) return;
-    const updatedTags = [...(editedTask.tags || []), newTag.trim()];
-    setEditedTask({ ...editedTask, tags: updatedTags });
-    setNewTag("");
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    const updatedTags = (editedTask.tags || []).filter(
-      (tag) => tag !== tagToRemove
-    );
-    setEditedTask({ ...editedTask, tags: updatedTags });
-  };
-
-  const getStatusColor = (status: TaskStatus) => {
-    switch (status) {
-      case TaskStatus.TODO:
-        return "gray";
-      case TaskStatus.IN_PROGRESS:
-        return "blue";
-      case TaskStatus.IN_REVIEW:
-        return "purple";
-      case TaskStatus.DONE:
-        return "green";
-      case TaskStatus.BLOCKED:
-        return "red";
-      case TaskStatus.CANCELLED:
-        return "orange";
-      default:
-        return "gray";
+      setIsRefreshing(false);
     }
   };
 
@@ -506,1509 +426,818 @@ export function TaskDetail() {
       case TaskPriority.URGENT:
         return "red";
       case TaskPriority.CRITICAL:
-        return "purple";
+        return "red";
       default:
         return "gray";
     }
   };
 
-  const formatDueDate = (date: string | Date | null) => {
-    if (!date) return "No due date";
-    const dueDate = new Date(date);
-    const now = new Date();
-    const diff = differenceInDays(dueDate, now);
-    
-    if (diff < 0) return `Overdue by ${Math.abs(diff)} days`;
-    if (diff === 0) return "Due today";
-    if (diff === 1) return "Due tomorrow";
-    if (diff <= 7) return `Due in ${diff} days`;
-    return format(dueDate, "MMM dd, yyyy");
+  const getStatusColor = (status: TaskStatus) => {
+    switch (status) {
+      case TaskStatus.TODO:
+        return "gray";
+      case TaskStatus.IN_PROGRESS:
+        return "blue";
+      case TaskStatus.IN_REVIEW:
+        return "purple";
+      case TaskStatus.DONE:
+        return "green";
+      case TaskStatus.BLOCKED:
+        return "red";
+      default:
+        return "gray";
+    }
   };
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "status_change":
-        return FiCheckSquare;
-      case "comment":
-        return FiMessageSquare;
-      case "attachment":
-        return FiPaperclip;
-      case "assignment":
-        return FiUser;
-      default:
-        return FiActivity;
-    }
+  const getStatusLabel = (status: TaskStatus) => {
+    return status.replace("_", " ").toUpperCase();
+  };
+
+  const getPriorityLabel = (priority: TaskPriority) => {
+    return priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
   };
 
   if (isLoading) {
     return (
-      <Container maxW="container.xl" py={8}>
-        <VStack spacing={6} align="stretch">
-          <Skeleton height="40px" />
-          <Grid templateColumns={{ base: "1fr", lg: "1fr 400px" }} gap={6}>
-            <GridItem>
-              <VStack spacing={4} align="stretch">
-                <SkeletonText mt="4" noOfLines={4} spacing="4" />
-                <Skeleton height="200px" />
-                <SkeletonText mt="4" noOfLines={6} spacing="4" />
-              </VStack>
-            </GridItem>
-            <GridItem>
-              <VStack spacing={4} align="stretch">
-                <Skeleton height="60px" />
-                <Skeleton height="60px" />
-                <Skeleton height="60px" />
-                <Skeleton height="60px" />
-              </VStack>
-            </GridItem>
-          </Grid>
+      <Box minH="100vh" bg={bgColor} p={6}>
+        <VStack align="center" justify="center" h="80vh">
+          <Spinner size="xl" color={accentColor} thickness="4px" />
+          <Text color={textColor} fontSize="lg">
+            Loading task...
+          </Text>
         </VStack>
-      </Container>
+      </Box>
     );
   }
 
   if (error || !task) {
     return (
-      <Container maxW="container.xl" py={8}>
-        <Alert status="error">
-          <AlertIcon />
-          {error instanceof Error ? error.message : "Task not found"}
-        </Alert>
-        <Button
-          mt={4}
-          leftIcon={<FiArrowLeft />}
-          onClick={() => navigate("/tasks")}
-        >
-          Back to Tasks
-        </Button>
-      </Container>
+      <Box minH="100vh" bg={bgColor} p={6}>
+        <VStack align="center" justify="center" h="80vh" spacing={6}>
+          <Alert status="error" maxW="md" borderRadius="lg">
+            <AlertIcon />
+            <Text>Task not found or failed to load</Text>
+          </Alert>
+          <Button
+            leftIcon={<FiArrowLeft />}
+            onClick={() => navigate(-1)}
+            colorScheme="blue"
+          >
+            Go Back
+          </Button>
+        </VStack>
+      </Box>
     );
   }
 
-  const currentProject = projectsData?.projects.find(
-    (p) => p.id === task.project_id
-  );
-  const assignee = users.find((u) => u.id === task.assignee_id);
-  const isOverdue =
-    task.due_date && isBefore(new Date(task.due_date), new Date());
-
   return (
-    <Box minH="100vh" bg={bgColor}>
-      <Container maxW="container.xl" py={8}>
-        {/* Enhanced Header with Breadcrumb and Actions */}
-        <VStack spacing={6} align="stretch" mb={8}>
-          <Card
+    <MotionBox
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      minH="100vh"
+      bg={bgColor}
+    >
+      <Box p={{ base: 4, md: 6 }}>
+        <VStack align="stretch" spacing={6}>
+          {/* Enhanced Header */}
+          <MotionCard
+            variants={cardVariants}
             bg={cardBg}
+            borderRadius="2xl"
+            shadow="md"
+            border="1px"
             borderColor={borderColor}
-            borderWidth="1px"
-            shadow="sm"
+            position="relative"
+            overflow="hidden"
+            _before={{
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "4px",
+              background: `linear-gradient(90deg, ${
+                task.project?.color || accentColor
+              } 0%, ${accentColor} 50%, ${
+                task.project?.color || accentColor
+              } 100%)`,
+              opacity: 0.8,
+            }}
           >
             <CardBody p={6}>
-              <VStack spacing={4} align="stretch">
-                <Breadcrumb
-                  spacing="8px"
-                  separator={<FiChevronDown color={mutedColor} />}
-                >
-          <BreadcrumbItem>
-                    <BreadcrumbLink
-                      as={Link}
-                      to="/tasks"
-                      color={accentColor}
-                      _hover={{
-                        color: accentColor,
-                        textDecoration: "underline",
-                      }}
-                    >
-              Tasks
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          {currentProject && (
-            <BreadcrumbItem>
-                      <BreadcrumbLink
-                        as={Link}
-                        to={`/projects/${currentProject.id}`}
-                        color={accentColor}
-                        _hover={{
-                          color: accentColor,
-                          textDecoration: "underline",
-                        }}
-                      >
-                {currentProject.name}
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-          )}
-          <BreadcrumbItem isCurrentPage>
-                    <BreadcrumbLink
-                      href="#"
-                      color={textColor}
-                      fontWeight="semibold"
-                    >
-                      {task.title}
-                    </BreadcrumbLink>
-          </BreadcrumbItem>
-        </Breadcrumb>
-
-        <Flex justify="space-between" align="center">
-          <HStack spacing={4}>
-            <IconButton
-              aria-label="Back to tasks"
-              icon={<FiArrowLeft />}
-              variant="ghost"
+              <VStack align="stretch" spacing={6}>
+                {/* Top Navigation */}
+                <HStack justify="space-between" align="center">
+                  <HStack spacing={4}>
+                    <Button
+                      variant="ghost"
+                      leftIcon={<FiArrowLeft />}
+                      onClick={() => navigate(-1)}
+                      size="sm"
                       color={textColor}
                       _hover={{ bg: hoverBg }}
-              onClick={() => navigate("/tasks")}
-            />
-                    <VStack align="start" spacing={1}>
-                      <Heading size="lg" color={textColor}>
-                        Task Details
-                      </Heading>
-                      <Text fontSize="sm" color={mutedColor}>
-                        Manage and track your task progress
-                      </Text>
-                    </VStack>
-          </HStack>
-
-                  <HStack spacing={3}>
-            <ButtonGroup size="sm" isAttached variant="outline">
-              <Tooltip label="Share task">
-                <Button
-                  leftIcon={<FiShare2 />}
-                  onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                    toast({
-                      title: "Link copied to clipboard",
-                      status: "success",
-                      duration: 2000,
-                    });
-                  }}
-                          color={textColor}
+                    >
+                      Back
+                    </Button>
+                    {task.project && (
+                      <>
+                        <Divider
+                          orientation="vertical"
+                          h="6"
                           borderColor={borderColor}
-                          _hover={{ bg: hoverBg, borderColor: accentColor }}
-                >
-                  Share
-                </Button>
-              </Tooltip>
-            </ButtonGroup>
+                        />
+                        <HStack spacing={2}>
+                          <Box
+                            w={4}
+                            h={4}
+                            bg={task.project.color}
+                            borderRadius="md"
+                          />
+                          <Text fontSize="sm" color={mutedColor} fontWeight="medium">
+                            {task.project.name}
+                          </Text>
+                        </HStack>
+                      </>
+                    )}
+                  </HStack>
 
-            <Menu>
+                  <HStack spacing={2}>
+                    <IconButton
+                      aria-label="Refresh"
+                      icon={<FiRefreshCw />}
+                      variant="ghost"
+                      size="sm"
+                      isLoading={isRefreshing}
+                      onClick={handleRefresh}
+                      color={textColor}
+                      _hover={{ bg: hoverBg }}
+                    />
+                    <IconButton
+                      aria-label="Share task"
+                      icon={<FiShare2 />}
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleShare}
+                      color={textColor}
+                      _hover={{ bg: hoverBg }}
+                    />
+                    <Menu>
                       <MenuButton
                         as={IconButton}
-                        icon={<FiMoreHorizontal />}
-                        variant="outline"
+                        icon={<FiMoreVertical />}
+                        variant="ghost"
                         size="sm"
                         color={textColor}
-                        borderColor={borderColor}
-                        _hover={{ bg: hoverBg, borderColor: accentColor }}
+                        _hover={{ bg: hoverBg }}
                       />
-                      <MenuList bg={cardBg} borderColor={borderColor}>
+                      <MenuList>
                         <MenuItem
-                          icon={<FiLink />}
-                          color={textColor}
-                          _hover={{ bg: hoverBg }}
+                          icon={<FiEdit2 />}
+                          onClick={() => setIsEditing(!isEditing)}
                         >
-                          Copy link
+                          {isEditing ? "Cancel Edit" : "Edit Task"}
                         </MenuItem>
-                        <MenuItem
-                          icon={<FiDownload />}
-                          color={textColor}
-                          _hover={{ bg: hoverBg }}
-                        >
-                          Export as PDF
+                        <MenuItem icon={<FiCopy />} onClick={handleShare}>
+                          Copy Link
                         </MenuItem>
-                        <MenuItem
-                          icon={<FiEye />}
-                          color={textColor}
-                          _hover={{ bg: hoverBg }}
-                        >
-                          Watch task
-                        </MenuItem>
-                        <MenuDivider borderColor={borderColor} />
+                        <Divider />
                         <MenuItem
                           icon={<FiTrash2 />}
-                          color={errorColor}
-                          _hover={{ bg: hoverBg }}
-                          onClick={onDeleteOpen}
+                          onClick={onOpen}
+                          color="red.500"
                         >
-                  Delete task
-                </MenuItem>
-              </MenuList>
-            </Menu>
+                          Delete Task
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
+                  </HStack>
+                </HStack>
 
-            {isEditing ? (
-              <ButtonGroup size="sm">
-                <Button
-                  leftIcon={<FiSave />}
-                  colorScheme="blue"
-                  onClick={handleSave}
-                  isLoading={updateTaskMutation.isPending}
-                          _hover={{
-                            transform: "translateY(-1px)",
-                            shadow: "lg",
-                          }}
-                >
-                  Save
-                </Button>
-                        <Button
-                          leftIcon={<FiX />}
-                          variant="ghost"
-                          onClick={handleCancel}
-                          color={textColor}
-                          _hover={{ bg: hoverBg }}
-                        >
-                  Cancel
-                </Button>
-              </ButtonGroup>
-            ) : (
-              <Button
-                leftIcon={<FiEdit2 />}
-                colorScheme="blue"
-                size="sm"
-                onClick={() => setIsEditing(true)}
-                        _hover={{ transform: "translateY(-1px)", shadow: "lg" }}
-              >
-                Edit
-              </Button>
-            )}
-          </HStack>
-        </Flex>
-              </VStack>
-            </CardBody>
-          </Card>
-      </VStack>
+                {/* Task Title */}
+                {isEditing ? (
+                  <Input
+                    value={editedTask.title || ""}
+                    onChange={(e) =>
+                      setEditedTask({ ...editedTask, title: e.target.value })
+                    }
+                    placeholder="Task title..."
+                    fontSize="2xl"
+                    fontWeight="bold"
+                    variant="flushed"
+                    size="lg"
+                    color={textColor}
+                    _focus={{ borderColor: accentColor }}
+                  />
+                ) : (
+                  <Heading
+                    size="xl"
+                    color={textColor}
+                    fontWeight="bold"
+                    lineHeight="tight"
+                  >
+                    {task.title}
+                  </Heading>
+                )}
 
-      {/* Main Content Grid */}
-      <Grid templateColumns={{ base: "1fr", lg: "1fr 400px" }} gap={6}>
-        {/* Left Column - Main Content */}
-        <GridItem>
-          <VStack spacing={6} align="stretch">
-              {/* Enhanced Task Title and Status */}
-              <Card
-                bg={cardBg}
-                borderColor={borderColor}
-                borderWidth="1px"
-                shadow="sm"
-                _hover={{ shadow: "md" }}
-                transition="all 0.2s ease"
-              >
-                <CardBody p={8}>
-                  <VStack align="stretch" spacing={6}>
-                  {isEditing ? (
-                      <VStack align="stretch" spacing={4}>
-                        <Text
-                          fontSize="sm"
-                          fontWeight="semibold"
-                          color={mutedColor}
-                          mb={2}
-                        >
-                          Task Title
-                        </Text>
-                    <Input
-                      value={editedTask.title || ""}
-                      onChange={(e) =>
-                            setEditedTask({
-                              ...editedTask,
-                              title: e.target.value,
-                            })
-                      }
-                      size="lg"
-                      fontSize="2xl"
-                      fontWeight="bold"
-                          placeholder="Enter task title..."
-                          bg={sidebarBg}
-                          borderColor={borderColor}
-                          _focus={{
-                            borderColor: accentColor,
-                            boxShadow: `0 0 0 1px ${accentColor}`,
-                          }}
-                        />
-                      </VStack>
-                    ) : (
-                      <VStack align="stretch" spacing={4}>
-                        <HStack
-                          justify="space-between"
-                          align="flex-start"
-                          wrap="wrap"
-                        >
-                          <Heading
-                            size="xl"
-                            color={textColor}
-                            fontWeight="bold"
-                            lineHeight="1.2"
-                            maxW="70%"
-                          >
-                        {task.title}
-                      </Heading>
-                          <HStack spacing={3} flexWrap="wrap">
-                        <Badge
-                          colorScheme={getStatusColor(task.status)}
-                          fontSize="sm"
-                              px={4}
-                              py={2}
-                              borderRadius="full"
-                              fontWeight="semibold"
-                              textTransform="capitalize"
-                        >
-                          {task.status.replace("_", " ")}
-                        </Badge>
-                        <Badge
-                          colorScheme={getPriorityColor(task.priority)}
-                          fontSize="sm"
-                              px={4}
-                              py={2}
-                              borderRadius="full"
-                              fontWeight="semibold"
-                              textTransform="capitalize"
-                        >
-                          {task.priority}
-                        </Badge>
-                      </HStack>
-                    </HStack>
-
-                        {/* Task Metadata */}
-                        <HStack spacing={6} flexWrap="wrap">
-                          <HStack spacing={2}>
-                            <Icon as={FiUser} color={mutedColor} boxSize={4} />
-                            <Text fontSize="sm" color={mutedColor}>
-                              {assignee
-                                ? assignee.full_name || assignee.email
-                                : "Unassigned"}
-                            </Text>
-                          </HStack>
-                          {task.due_date && (
-                            <HStack spacing={2}>
-                              <Icon
-                                as={FiCalendar}
-                                color={isOverdue ? errorColor : mutedColor}
-                                boxSize={4}
-                              />
-                              <Text
-                                fontSize="sm"
-                                color={isOverdue ? errorColor : mutedColor}
-                                fontWeight={isOverdue ? "semibold" : "normal"}
-                              >
-                                {formatDueDate(task.due_date)}
-                              </Text>
-                              {isOverdue && (
-                                <Icon
-                                  as={FiAlertCircle}
-                                  color={errorColor}
-                                  boxSize={4}
-                                />
-                              )}
-                            </HStack>
-                          )}
-                          {currentProject && (
-                            <HStack spacing={2}>
-                              <Icon
-                                as={FiFolder}
-                                color={currentProject.color}
-                                boxSize={4}
-                              />
-                              <Text fontSize="sm" color={mutedColor}>
-                                {currentProject.name}
-                              </Text>
-                            </HStack>
-                          )}
-                        </HStack>
-                      </VStack>
-                    )}
-
-                    {/* Enhanced Description */}
-                  <Box>
-                      <Text
-                        fontSize="sm"
-                        fontWeight="semibold"
-                        color={mutedColor}
-                        mb={3}
-                      >
-                      Description
+                {/* Status and Priority */}
+                <HStack spacing={4} flexWrap="wrap">
+                  <VStack align="start" spacing={1}>
+                    <Text fontSize="xs" color={mutedColor} fontWeight="semibold" textTransform="uppercase">
+                      Status
                     </Text>
                     {isEditing ? (
-                        <VStack align="stretch" spacing={2}>
-                      <Textarea
-                        value={editedTask.description || ""}
+                      <Select
+                        value={editedTask.status || task.status}
                         onChange={(e) =>
-                              setEditedTask({
-                                ...editedTask,
-                                description: e.target.value,
-                              })
+                          setEditedTask({
+                            ...editedTask,
+                            status: e.target.value as TaskStatus,
+                          })
                         }
-                        minH="120px"
-                        resize="vertical"
-                            placeholder="Add a detailed description for this task..."
-                            bg={sidebarBg}
-                            borderColor={borderColor}
-                            _focus={{
-                              borderColor: accentColor,
-                              boxShadow: `0 0 0 1px ${accentColor}`,
-                            }}
-                          />
-                          <Text fontSize="xs" color={mutedColor}>
-                            Provide context, requirements, and any additional
-                            details
-                          </Text>
-                        </VStack>
+                        size="sm"
+                        maxW="150px"
+                      >
+                        {Object.values(TaskStatus).map((status) => (
+                          <option key={status} value={status}>
+                            {getStatusLabel(status)}
+                          </option>
+                        ))}
+                      </Select>
                     ) : (
-                      <Box
-                          p={6}
-                        bg={sidebarBg}
-                          borderRadius="lg"
-                          minH="100px"
-                          border="1px solid"
+                      <Badge
+                        colorScheme={getStatusColor(task.status)}
+                        variant="solid"
+                        px={3}
+                        py={1}
+                        borderRadius="full"
+                        fontSize="xs"
+                        fontWeight="semibold"
+                      >
+                        {getStatusLabel(task.status)}
+                      </Badge>
+                    )}
+                  </VStack>
+
+                  <VStack align="start" spacing={1}>
+                    <Text fontSize="xs" color={mutedColor} fontWeight="semibold" textTransform="uppercase">
+                      Priority
+                    </Text>
+                    {isEditing ? (
+                      <Select
+                        value={editedTask.priority || task.priority}
+                        onChange={(e) =>
+                          setEditedTask({
+                            ...editedTask,
+                            priority: e.target.value as TaskPriority,
+                          })
+                        }
+                        size="sm"
+                        maxW="150px"
+                      >
+                        {Object.values(TaskPriority).map((priority) => (
+                          <option key={priority} value={priority}>
+                            {getPriorityLabel(priority)}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <Badge
+                        colorScheme={getPriorityColor(task.priority)}
+                        variant="solid"
+                        px={3}
+                        py={1}
+                        borderRadius="full"
+                        fontSize="xs"
+                        fontWeight="semibold"
+                      >
+                        {getPriorityLabel(task.priority)}
+                      </Badge>
+                    )}
+                  </VStack>
+
+                  {task.assignee && (
+                    <VStack align="start" spacing={1}>
+                      <Text fontSize="xs" color={mutedColor} fontWeight="semibold" textTransform="uppercase">
+                        Assignee
+                      </Text>
+                      {isEditing ? (
+                        <Select
+                          value={editedTask.assignee_id || ""}
+                          onChange={(e) =>
+                            setEditedTask({
+                              ...editedTask,
+                              assignee_id: e.target.value,
+                            })
+                          }
+                          size="sm"
+                          maxW="200px"
+                        >
+                          <option value="">Unassigned</option>
+                          {users.map((user) => (
+                            <option key={user.id} value={user.id}>
+                              {user.full_name || user.username}
+                            </option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <HStack spacing={2}>
+                          <UserAvatar
+                            user={task.assignee}
+                            size="sm"
+                            src={task.assignee.avatar_url}
+                          />
+                          <Text fontSize="sm" fontWeight="medium" color={textColor}>
+                            {task.assignee.full_name || task.assignee.username}
+                          </Text>
+                        </HStack>
+                      )}
+                    </VStack>
+                  )}
+
+                  {(task.due_date || isEditing) && (
+                    <VStack align="start" spacing={1}>
+                      <Text fontSize="xs" color={mutedColor} fontWeight="semibold" textTransform="uppercase">
+                        Due Date
+                      </Text>
+                      {isEditing ? (
+                        <Input
+                          type="date"
+                          value={editedTask.due_date || ""}
+                          onChange={(e) =>
+                            setEditedTask({
+                              ...editedTask,
+                              due_date: e.target.value,
+                            })
+                          }
+                          size="sm"
+                          maxW="150px"
+                        />
+                      ) : task.due_date ? (
+                        <Text fontSize="sm" color={textColor} fontWeight="medium">
+                          {format(new Date(task.due_date), "MMM dd, yyyy")}
+                        </Text>
+                      ) : null}
+                    </VStack>
+                  )}
+                </HStack>
+
+                {/* Action Buttons */}
+                {isEditing && (
+                  <HStack spacing={3}>
+                    <Button
+                      colorScheme="blue"
+                      leftIcon={<FiSave />}
+                      onClick={handleSave}
+                      isLoading={updateTaskMutation.isPending}
+                      size="sm"
+                    >
+                      Save Changes
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setIsEditing(false)}
+                      size="sm"
+                    >
+                      Cancel
+                    </Button>
+                  </HStack>
+                )}
+              </VStack>
+            </CardBody>
+          </MotionCard>
+
+          {/* Main Content Grid */}
+          <SimpleGrid columns={{ base: 1, xl: 3 }} spacing={6}>
+            {/* Left Column - Main Content */}
+            <Box gridColumn={{ xl: "1 / 3" }}>
+              <VStack align="stretch" spacing={6}>
+                {/* Description */}
+                <MotionCard variants={cardVariants} bg={cardBg} borderRadius="xl" shadow="md" border="1px" borderColor={borderColor}>
+                  <CardBody p={6}>
+                    <VStack align="stretch" spacing={4}>
+                      <Heading size="md" color={textColor} fontWeight="bold">
+                        Description
+                      </Heading>
+                      {isEditing ? (
+                        <Textarea
+                          value={editedTask.description || ""}
+                          onChange={(e) =>
+                            setEditedTask({
+                              ...editedTask,
+                              description: e.target.value,
+                            })
+                          }
+                          placeholder="Add a description..."
+                          rows={6}
+                          resize="vertical"
                           borderColor={borderColor}
+                          _focus={{ borderColor: accentColor }}
+                        />
+                      ) : (
+                        <Box
+                          p={4}
+                          bg={hoverBg}
+                          borderRadius="lg"
+                          border="1px"
+                          borderColor={borderColor}
+                          minH="120px"
                         >
                           <Text
-                            color={textColor}
+                            color={task.description ? textColor : mutedColor}
+                            lineHeight="tall"
                             whiteSpace="pre-wrap"
-                            lineHeight="1.6"
-                            fontSize="md"
                           >
-                            {task.description || (
-                              <Text color={mutedColor} fontStyle="italic">
-                                No description provided. Click Edit to add
-                                details about this task.
-                              </Text>
+                            {task.description || "No description provided"}
+                          </Text>
+                        </Box>
+                      )}
+                    </VStack>
+                  </CardBody>
+                </MotionCard>
+
+                {/* Comments and Activities */}
+                <MotionCard variants={cardVariants} bg={cardBg} borderRadius="xl" shadow="md" border="1px" borderColor={borderColor}>
+                  <CardBody p={0}>
+                    <Tabs colorScheme="blue" variant="line">
+                      <TabList px={6} pt={4}>
+                        <Tab
+                          color={textColor}
+                          _selected={{
+                            color: accentColor,
+                            borderColor: accentColor,
+                            fontWeight: "semibold",
+                          }}
+                        >
+                          <HStack spacing={2}>
+                            <Icon as={FiMessageSquare} />
+                            <Text>Comments ({comments.length})</Text>
+                          </HStack>
+                        </Tab>
+                        <Tab
+                          color={textColor}
+                          _selected={{
+                            color: accentColor,
+                            borderColor: accentColor,
+                            fontWeight: "semibold",
+                          }}
+                        >
+                          <HStack spacing={2}>
+                            <Icon as={FiActivity} />
+                            <Text>Activity ({activities.length})</Text>
+                          </HStack>
+                        </Tab>
+                      </TabList>
+
+                      <TabPanels>
+                        {/* Comments Panel */}
+                        <TabPanel px={6} py={6}>
+                          <VStack align="stretch" spacing={4}>
+                            {/* Add Comment */}
+                            <HStack spacing={3}>
+                              <UserAvatar user={{ full_name: "You" }} size="sm" />
+                              <VStack flex={1} align="stretch" spacing={2}>
+                                <Textarea
+                                  placeholder="Add a comment..."
+                                  value={newComment}
+                                  onChange={(e) => setNewComment(e.target.value)}
+                                  resize="vertical"
+                                  minH="80px"
+                                  borderColor={borderColor}
+                                  _focus={{ borderColor: accentColor }}
+                                />
+                                <HStack justify="flex-end">
+                                  <Button
+                                    colorScheme="blue"
+                                    size="sm"
+                                    rightIcon={<FiSend />}
+                                    onClick={handleAddComment}
+                                    isLoading={addCommentMutation.isPending}
+                                    isDisabled={!newComment.trim()}
+                                  >
+                                    Comment
+                                  </Button>
+                                </HStack>
+                              </VStack>
+                            </HStack>
+
+                            <Divider borderColor={borderColor} />
+
+                            {/* Comments List */}
+                            {commentsLoading ? (
+                              Array.from({ length: 3 }).map((_, i) => (
+                                <HStack key={i} align="start" spacing={3}>
+                                  <SkeletonCircle size="10" />
+                                  <VStack align="start" flex={1} spacing={1}>
+                                    <Skeleton height="4" width="120px" />
+                                    <Skeleton height="3" width="80px" />
+                                    <SkeletonText mt="2" noOfLines={2} spacing="2" />
+                                  </VStack>
+                                </HStack>
+                              ))
+                            ) : comments.length > 0 ? (
+                              comments.map((comment) => (
+                                <Fade key={comment.id} in>
+                                  <HStack align="start" spacing={3}>
+                                    <UserAvatar
+                                      user={comment.user}
+                                      size="sm"
+                                      src={comment.user.avatar_url}
+                                    />
+                                    <VStack align="start" flex={1} spacing={1}>
+                                      <HStack spacing={2} align="center">
+                                        <Text fontSize="sm" fontWeight="semibold" color={textColor}>
+                                          {comment.user.full_name}
+                                        </Text>
+                                        <Text fontSize="xs" color={mutedColor}>
+                                          {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                                        </Text>
+                                      </HStack>
+                                      <Box
+                                        p={3}
+                                        bg={hoverBg}
+                                        borderRadius="lg"
+                                        border="1px"
+                                        borderColor={borderColor}
+                                      >
+                                        <Text fontSize="sm" color={textColor} lineHeight="tall">
+                                          {comment.content}
+                                        </Text>
+                                      </Box>
+                                    </VStack>
+                                  </HStack>
+                                </Fade>
+                              ))
+                            ) : (
+                              <Box textAlign="center" py={8}>
+                                <Icon as={FiMessageSquare} boxSize={8} color={mutedColor} mb={2} />
+                                <Text color={mutedColor} fontSize="sm">
+                                  No comments yet. Be the first to comment!
+                                </Text>
+                              </Box>
                             )}
+                          </VStack>
+                        </TabPanel>
+
+                        {/* Activities Panel */}
+                        <TabPanel px={6} py={6}>
+                          <VStack align="stretch" spacing={4}>
+                            {activitiesLoading ? (
+                              Array.from({ length: 3 }).map((_, i) => (
+                                <HStack key={i} align="start" spacing={3}>
+                                  <SkeletonCircle size="8" />
+                                  <VStack align="start" flex={1} spacing={1}>
+                                    <Skeleton height="4" width="200px" />
+                                    <Skeleton height="3" width="80px" />
+                                  </VStack>
+                                </HStack>
+                              ))
+                            ) : activities.length > 0 ? (
+                              activities.map((activity) => (
+                                <Fade key={activity.id} in>
+                                  <HStack align="start" spacing={3}>
+                                    <Box p={2} bg={accentColor} borderRadius="lg">
+                                      <Icon as={FiActivity} color="white" boxSize={3} />
+                                    </Box>
+                                    <VStack align="start" flex={1} spacing={1}>
+                                      <Text fontSize="sm" color={textColor}>
+                                        <Text as="span" fontWeight="semibold">
+                                          {activity.user.full_name}
+                                        </Text>{" "}
+                                        {activity.action}
+                                      </Text>
+                                      <Text fontSize="xs" color={mutedColor}>
+                                        {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
+                                      </Text>
+                                    </VStack>
+                                  </HStack>
+                                </Fade>
+                              ))
+                            ) : (
+                              <Box textAlign="center" py={8}>
+                                <Icon as={FiActivity} boxSize={8} color={mutedColor} mb={2} />
+                                <Text color={mutedColor} fontSize="sm">
+                                  No activity yet
+                                </Text>
+                              </Box>
+                            )}
+                          </VStack>
+                        </TabPanel>
+                      </TabPanels>
+                    </Tabs>
+                  </CardBody>
+                </MotionCard>
+              </VStack>
+            </Box>
+
+            {/* Right Column - Sidebar */}
+            <VStack align="stretch" spacing={6}>
+              {/* Task Stats */}
+              <MotionCard variants={cardVariants} bg={cardBg} borderRadius="xl" shadow="md" border="1px" borderColor={borderColor}>
+                <CardBody p={6}>
+                  <VStack align="stretch" spacing={4}>
+                    <Heading size="sm" color={textColor} fontWeight="bold">
+                      Task Details
+                    </Heading>
+                    <VStack align="stretch" spacing={3}>
+                      <HStack justify="space-between">
+                        <Text fontSize="sm" color={mutedColor}>
+                          Created
+                        </Text>
+                        <Text fontSize="sm" color={textColor} fontWeight="medium">
+                          {format(new Date(task.created_at), "MMM dd, yyyy")}
+                        </Text>
+                      </HStack>
+                      <HStack justify="space-between">
+                        <Text fontSize="sm" color={mutedColor}>
+                          Updated
+                        </Text>
+                        <Text fontSize="sm" color={textColor} fontWeight="medium">
+                          {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}
+                        </Text>
+                      </HStack>
+                      {task.completed_at && (
+                        <HStack justify="space-between">
+                          <Text fontSize="sm" color={mutedColor}>
+                            Completed
+                          </Text>
+                          <Text fontSize="sm" color={successColor} fontWeight="medium">
+                            {format(new Date(task.completed_at), "MMM dd, yyyy")}
+                          </Text>
+                        </HStack>
+                      )}
+                    </VStack>
+                  </VStack>
+                </CardBody>
+              </MotionCard>
+
+              {/* Attachments */}
+              <MotionCard variants={cardVariants} bg={cardBg} borderRadius="xl" shadow="md" border="1px" borderColor={borderColor}>
+                <CardBody p={6}>
+                  <VStack align="stretch" spacing={4}>
+                    <HStack justify="space-between">
+                      <Heading size="sm" color={textColor} fontWeight="bold">
+                        Attachments ({attachments.length})
+                      </Heading>
+                      <IconButton
+                        aria-label="Upload attachment"
+                        icon={<FiPaperclip />}
+                        variant="ghost"
+                        size="sm"
+                        color={textColor}
+                        _hover={{ bg: hoverBg }}
+                        onClick={() => fileInputRef.current?.click()}
+                      />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            uploadAttachmentsMutation.mutate(files);
+                          }
+                          // Reset input
+                          if (e.target) {
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                    </HStack>
+
+                    {attachmentsLoading ? (
+                      Array.from({ length: 2 }).map((_, i) => (
+                        <HStack key={i} spacing={3}>
+                          <SkeletonCircle size="8" />
+                          <VStack align="start" flex={1} spacing={1}>
+                            <Skeleton height="3" width="80px" />
+                            <Skeleton height="2" width="60px" />
+                          </VStack>
+                        </HStack>
+                      ))
+                    ) : attachments.length > 0 ? (
+                      attachments.map((attachment) => (
+                        <HStack key={attachment.id} spacing={3}>
+                          <Icon as={FiFile} color={mutedColor} />
+                          <VStack align="start" flex={1} spacing={1}>
+                            <Text fontSize="sm" color={textColor} fontWeight="medium" noOfLines={1}>
+                              {attachment.name}
+                            </Text>
+                            <Text fontSize="xs" color={mutedColor}>
+                              {(attachment.size / 1024).toFixed(1)} KB
+                            </Text>
+                          </VStack>
+                          <IconButton
+                            aria-label="Download"
+                            icon={<FiDownload />}
+                            variant="ghost"
+                            size="sm"
+                            color={mutedColor}
+                            _hover={{ bg: hoverBg, color: textColor }}
+                            onClick={async () => {
+                              try {
+                                const blob = await AttachmentService.downloadAttachment(attachment.id);
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = attachment.name;
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                document.body.removeChild(a);
+                              } catch (error) {
+                                toast({
+                                  title: "Download failed",
+                                  status: "error",
+                                  duration: 3000,
+                                  isClosable: true,
+                                });
+                              }
+                            }}
+                          />
+                        </HStack>
+                      ))
+                    ) : (
+                      <Box textAlign="center" py={6}>
+                        <Icon as={FiPaperclip} boxSize={6} color={mutedColor} mb={2} />
+                        <Text color={mutedColor} fontSize="sm">
+                          No attachments yet
                         </Text>
                       </Box>
                     )}
-                  </Box>
+                  </VStack>
+                </CardBody>
+              </MotionCard>
 
-                    {/* Enhanced Tags */}
-                  {(isEditing || (task.tags && task.tags.length > 0)) && (
-                    <Box>
-                        <Text
-                          fontSize="sm"
-                          fontWeight="semibold"
-                          color={mutedColor}
-                          mb={3}
-                        >
-                        Tags
-                      </Text>
-                        <Wrap spacing={3}>
-                          {(isEditing ? editedTask.tags : task.tags)?.map(
-                            (tag) => (
-                          <WrapItem key={tag}>
-                            <Tag
-                              size="md"
-                              borderRadius="full"
-                              variant="solid"
-                              colorScheme="blue"
-                                  px={4}
-                                  py={2}
-                                  _hover={{
-                                    transform: "translateY(-1px)",
-                                    shadow: "md",
-                                  }}
-                                  transition="all 0.2s ease"
-                                >
-                                  <TagLabel fontWeight="medium">{tag}</TagLabel>
-                              {isEditing && (
-                                    <TagCloseButton
-                                      onClick={() => handleRemoveTag(tag)}
-                                      _hover={{ bg: "red.500", color: "white" }}
-                                    />
-                              )}
-                            </Tag>
-                          </WrapItem>
-                            )
-                          )}
-                        {isEditing && (
-                          <WrapItem>
-                              <HStack
-                                spacing={2}
-                                p={2}
-                                bg={sidebarBg}
-                                borderRadius="full"
-                                border="1px solid"
-                                borderColor={borderColor}
-                              >
-                              <Input
-                                size="sm"
-                                  placeholder="Add tag..."
-                                value={newTag}
-                                onChange={(e) => setNewTag(e.target.value)}
-                                onKeyPress={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleAddTag();
-                                  }
-                                }}
-                                  width="120px"
-                                  border="none"
-                                  bg="transparent"
-                                  _focus={{ boxShadow: "none" }}
-                              />
-                              <IconButton
-                                aria-label="Add tag"
-                                icon={<FiPlus />}
-                                size="sm"
-                                  colorScheme="blue"
-                                  variant="ghost"
-                                onClick={handleAddTag}
-                                  isDisabled={!newTag.trim()}
-                              />
-                            </HStack>
-                          </WrapItem>
-                        )}
-                      </Wrap>
-                    </Box>
-                  )}
-                </VStack>
-              </CardBody>
-            </Card>
-
-              {/* Enhanced Tabs for Comments, Activity, and Attachments */}
-              <Card
-                bg={cardBg}
-                borderColor={borderColor}
-                borderWidth="1px"
-                shadow="sm"
-                _hover={{ shadow: "md" }}
-                transition="all 0.2s ease"
-              >
-                <CardBody p={0}>
-                  <Tabs
-                    index={activeTab}
-                    onChange={setActiveTab}
-                    variant="enclosed"
-                  >
-                    <TabList
-                      bg={sidebarBg}
-                      borderBottom="1px solid"
-                      borderColor={borderColor}
-                      px={6}
-                      py={2}
-                    >
-                      <Tab
-                        color={textColor}
-                        _selected={{
-                          color: accentColor,
-                          borderColor: accentColor,
-                          bg: cardBg,
-                          fontWeight: "semibold",
-                        }}
-                        _hover={{ color: accentColor }}
-                      >
-                      <HStack spacing={2}>
-                          <Icon as={FiMessageSquare} />
-                        <Text>Comments</Text>
-                          <Badge
-                            colorScheme="blue"
-                            borderRadius="full"
-                            fontSize="xs"
-                            px={2}
-                            py={1}
-                          >
-                          {comments.length}
-                        </Badge>
-                      </HStack>
-                    </Tab>
-                      <Tab
-                        color={textColor}
-                        _selected={{
-                          color: accentColor,
-                          borderColor: accentColor,
-                          bg: cardBg,
-                          fontWeight: "semibold",
-                        }}
-                        _hover={{ color: accentColor }}
-                      >
-                      <HStack spacing={2}>
-                          <Icon as={FiActivity} />
-                        <Text>Activity</Text>
-                      </HStack>
-                    </Tab>
-                      <Tab
-                        color={textColor}
-                        _selected={{
-                          color: accentColor,
-                          borderColor: accentColor,
-                          bg: cardBg,
-                          fontWeight: "semibold",
-                        }}
-                        _hover={{ color: accentColor }}
-                      >
-                      <HStack spacing={2}>
-                          <Icon as={FiPaperclip} />
-                        <Text>Attachments</Text>
-                          <Badge
-                            colorScheme="blue"
-                            borderRadius="full"
-                            fontSize="xs"
-                            px={2}
-                            py={1}
-                          >
-                          {attachments.length}
-                        </Badge>
-                      </HStack>
-                    </Tab>
-                  </TabList>
-
-                  <TabPanels>
-                      {/* Enhanced Comments Tab */}
-                      <TabPanel px={6} py={6}>
-                        <VStack align="stretch" spacing={6}>
-                        {isLoadingComments ? (
-                          <>
-                            <HStack align="start" spacing={3}>
-                              <SkeletonCircle size="10" />
-                              <VStack align="stretch" flex={1} spacing={2}>
-                                <Skeleton height="20px" width="150px" />
-                                <SkeletonText noOfLines={2} spacing="2" />
-                              </VStack>
-                            </HStack>
-                          </>
-                        ) : comments.length > 0 ? (
-                          comments.map((comment) => (
-                              <HStack
-                                key={comment.id}
-                                align="start"
-                                spacing={3}
-                              >
-                              <Avatar
-                                size="sm"
-                                  name={
-                                    comment.user?.full_name ||
-                                    comment.user?.email
-                                  }
-                              />
-                              <VStack align="stretch" flex={1} spacing={1}>
-                                <HStack justify="space-between">
-                                  <HStack spacing={2}>
-                                    <Text fontWeight="semibold" fontSize="sm">
-                                        {comment.user?.full_name ||
-                                          comment.user?.email}
-                                    </Text>
-                                    <Text fontSize="xs" color={mutedColor}>
-                                        {formatDistanceToNow(
-                                          new Date(comment.created_at),
-                                          {
-                                        addSuffix: true,
-                                          }
-                                        )}
-                                    </Text>
-                                    {comment.edited && (
-                                      <Text fontSize="xs" color={mutedColor}>
-                                        (edited)
-                                      </Text>
-                                    )}
-                                  </HStack>
-                                  {comment.user_id === user?.id && (
-                                    <HStack spacing={1}>
-                                      <IconButton
-                                        aria-label="Edit comment"
-                                        icon={<FiEdit2 />}
-                                        size="xs"
-                                        variant="ghost"
-                                        onClick={() => {
-                                          setEditingComment(comment.id);
-                                            setEditedCommentContent(
-                                              comment.content
-                                            );
-                                        }}
-                                      />
-                                      <IconButton
-                                        aria-label="Delete comment"
-                                        icon={<FiTrash2 />}
-                                        size="xs"
-                                        variant="ghost"
-                                        color="red.500"
-                                          onClick={() =>
-                                            deleteCommentMutation.mutate(
-                                              comment.id
-                                            )
-                                          }
-                                      />
-                                    </HStack>
-                                  )}
-                                </HStack>
-                                {editingComment === comment.id ? (
-                                  <VStack align="stretch" spacing={2}>
-                                    <Textarea
-                                      value={editedCommentContent}
-                                        onChange={(e) =>
-                                          setEditedCommentContent(
-                                            e.target.value
-                                          )
-                                        }
-                                      size="sm"
-                                    />
-                                    <HStack spacing={2}>
-                                      <Button
-                                        size="xs"
-                                        colorScheme="blue"
-                                        onClick={() =>
-                                          updateCommentMutation.mutate({
-                                            commentId: comment.id,
-                                            content: editedCommentContent,
-                                          })
-                                        }
-                                      >
-                                        Save
-                                      </Button>
-                                      <Button
-                                        size="xs"
-                                        variant="ghost"
-                                        onClick={() => {
-                                          setEditingComment(null);
-                                          setEditedCommentContent("");
-                                        }}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </HStack>
-                                  </VStack>
-                                ) : (
-                                    <Text
-                                      fontSize="sm"
-                                      color={textColor}
-                                      whiteSpace="pre-wrap"
-                                    >
-                                    {comment.content}
-                                  </Text>
-                                )}
-                              </VStack>
-                            </HStack>
-                          ))
-                        ) : (
-                          <Text color={mutedColor} textAlign="center" py={4}>
-                            No comments yet. Be the first to comment!
-                          </Text>
-                        )}
-
-                        <Divider />
-
-                        {/* Add Comment */}
-                        <HStack align="start" spacing={3}>
-                            <Avatar
-                              size="sm"
-                              name={user?.full_name || user?.email}
-                            />
-                          <VStack align="stretch" flex={1} spacing={2}>
-                            <Textarea
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                              placeholder="Add a comment..."
-                              size="sm"
-                              resize="vertical"
-                              minH="80px"
-                            />
-                            <HStack justify="flex-end">
-                              <Button
-                                leftIcon={<FiSend />}
-                                colorScheme="blue"
-                                size="sm"
-                                isDisabled={!newComment.trim()}
-                                isLoading={addCommentMutation.isPending}
-                                onClick={() => {
-                                  if (newComment.trim()) {
-                                    addCommentMutation.mutate(newComment);
-                                  }
-                                }}
-                              >
-                                Comment
-                              </Button>
-                            </HStack>
-                          </VStack>
-                        </HStack>
-                      </VStack>
-                    </TabPanel>
-
-                    {/* Activity Tab */}
-                    <TabPanel px={0}>
-                      <VStack align="stretch" spacing={4}>
-                        {isLoadingActivities ? (
-                          <SkeletonText noOfLines={5} spacing="4" />
-                        ) : activities.length > 0 ? (
-                          activities.map((activity) => {
-                              const ActivityIcon = getActivityIcon(
-                                activity.type
-                              );
-                            return (
-                                <HStack
-                                  key={activity.id}
-                                  align="start"
-                                  spacing={3}
-                                >
-                                <Circle size="32px" bg={hoverBg}>
-                                    <Icon
-                                      as={ActivityIcon}
-                                      boxSize={4}
-                                      color={mutedColor}
-                                    />
-                                </Circle>
-                                <VStack align="stretch" flex={1} spacing={0}>
-                                  <Text fontSize="sm">
-                                    <Text as="span" fontWeight="semibold">
-                                        {activity.user?.full_name ||
-                                          activity.user?.email}
-                                    </Text>{" "}
-                                    {activity.action}
-                                  </Text>
-                                  <Text fontSize="xs" color={mutedColor}>
-                                      {formatDistanceToNow(
-                                        new Date(activity.created_at),
-                                        {
-                                      addSuffix: true,
-                                        }
-                                      )}
-                                  </Text>
-                                </VStack>
-                              </HStack>
-                            );
-                          })
-                        ) : (
-                          <Text color={mutedColor} textAlign="center" py={4}>
-                              Activity will appear here when changes are made to
-                              this task.
-                          </Text>
-                        )}
-                      </VStack>
-                    </TabPanel>
-
-                    {/* Attachments Tab */}
-                    <TabPanel px={0}>
-                      <VStack align="stretch" spacing={4}>
-                        <HStack>
-                          <Input
-                            ref={fileInputRef}
-                            type="file"
-                            multiple
-                            hidden
-                            onChange={handleFileUpload}
-                          />
-                          <Button
-                            leftIcon={<FiUpload />}
-                            size="sm"
-                            onClick={() => fileInputRef.current?.click()}
-                            isLoading={isUploading}
-                            loadingText="Uploading..."
-                          >
-                            Upload Files
-                          </Button>
-                        </HStack>
-
-                        {isLoadingAttachments ? (
-                          <SkeletonText noOfLines={3} spacing="4" />
-                        ) : attachments.length > 0 ? (
-                          attachments.map((attachment) => (
-                            <HStack
-                              key={attachment.id}
-                              p={3}
-                              bg={hoverBg}
-                              borderRadius="md"
-                              justify="space-between"
-                            >
-                              <HStack spacing={3}>
-                                  <Icon
-                                    as={FiFile}
-                                    boxSize={5}
-                                    color={mutedColor}
-                                  />
-                                <VStack align="start" spacing={0}>
-                                  <Text fontSize="sm" fontWeight="medium">
-                                    {attachment.name}
-                                  </Text>
-                                  <Text fontSize="xs" color={mutedColor}>
-                                    {(attachment.size / 1024).toFixed(2)} KB •{" "}
-                                      {formatDistanceToNow(
-                                        new Date(attachment.uploaded_at),
-                                        {
-                                      addSuffix: true,
-                                        }
-                                      )}
-                                    {attachment.uploaded_by?.full_name && (
-                                        <>
-                                          {" "}
-                                          • by{" "}
-                                          {attachment.uploaded_by.full_name}
-                                        </>
-                                    )}
-                                  </Text>
-                                </VStack>
-                              </HStack>
-                              <HStack spacing={1}>
-                                <IconButton
-                                  aria-label="Download"
-                                  icon={<FiDownload />}
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={async () => {
-                                    try {
-                                        const response = await api.get(
-                                          `/tasks/attachments/${attachment.id}/download`,
-                                          {
-                                            responseType: "blob",
-                                          }
-                                        );
-                                        const url = window.URL.createObjectURL(
-                                          new Blob([response.data])
-                                        );
-                                        const link =
-                                          document.createElement("a");
-                                      link.href = url;
-                                        link.setAttribute(
-                                          "download",
-                                          attachment.name
-                                        );
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      link.remove();
-                                      window.URL.revokeObjectURL(url);
-                                    } catch (error) {
-                                      toast({
-                                        title: "Failed to download file",
-                                        status: "error",
-                                        duration: 3000,
-                                      });
-                                    }
-                                  }}
-                                />
-                                  {(attachment.uploaded_by?.id === user?.id ||
-                                    task.creator_id === user?.id) && (
-                                  <IconButton
-                                    aria-label="Delete"
-                                    icon={<FiTrash2 />}
-                                    size="sm"
-                                    variant="ghost"
-                                    color="red.500"
-                                    onClick={async () => {
-                                        if (
-                                          !window.confirm(
-                                            "Are you sure you want to delete this attachment?"
-                                          )
-                                        )
-                                          return;
-                                        try {
-                                          await api.delete(
-                                            `/tasks/${taskId}/attachments/${attachment.id}`
-                                          );
-                                        refetchAttachments();
-                                        toast({
-                                          title: "Attachment deleted",
-                                          status: "success",
-                                          duration: 2000,
-                                        });
-                                      } catch (error) {
-                                        toast({
-                                            title:
-                                              "Failed to delete attachment",
-                                          status: "error",
-                                          duration: 3000,
-                                        });
-                                      }
-                                    }}
-                                  />
-                                )}
-                              </HStack>
-                            </HStack>
-                          ))
-                        ) : (
-                          <Text color={mutedColor} textAlign="center" py={4}>
-                            No attachments yet. Upload files to get started.
-                          </Text>
-                        )}
-                      </VStack>
-                    </TabPanel>
-                  </TabPanels>
-                </Tabs>
-              </CardBody>
-            </Card>
-          </VStack>
-        </GridItem>
-
-        {/* Right Column - Sidebar */}
-        <GridItem>
-          <Card
-            bg={cardBg}
-            borderColor={borderColor}
-            borderWidth="1px"
-            position="sticky"
-            top={4}
-          >
-            <CardBody>
-              <VStack align="stretch" spacing={6}>
-                {/* Quick Actions */}
-                <Box>
-                  <Button
-                      colorScheme={
-                        task.status === TaskStatus.DONE ? "green" : "blue"
-                      }
-                    size="sm"
-                    width="full"
-                    leftIcon={<FiCheckSquare />}
-                    onClick={() => {
-                      const newStatus =
-                        task.status === TaskStatus.DONE
-                          ? TaskStatus.TODO
-                          : TaskStatus.DONE;
-                      handleQuickUpdate("status", newStatus);
-                    }}
-                  >
-                    {task.status === TaskStatus.DONE
-                      ? "Reopen Task"
-                      : "Mark Complete"}
-                  </Button>
-                </Box>
-
-                <Divider />
-
-                {/* Status */}
-                <Box>
-                    <Text
-                      fontSize="sm"
-                      fontWeight="semibold"
-                      color={mutedColor}
-                      mb={2}
-                    >
-                    Status
-                  </Text>
-                  {isEditing ? (
-                    <Select
-                      value={editedTask.status || ""}
-                      onChange={(e) =>
-                        setEditedTask({
-                          ...editedTask,
-                          status: e.target.value as TaskStatus,
-                        })
-                      }
-                      size="sm"
-                    >
-                      {Object.values(TaskStatus).map((status) => (
-                        <option key={status} value={status}>
-                          {status.replace("_", " ")}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <Menu>
-                      <MenuButton
-                        as={Button}
-                        rightIcon={<FiChevronDown />}
-                        size="sm"
-                        width="full"
+              {/* Quick Actions */}
+              <MotionCard variants={cardVariants} bg={cardBg} borderRadius="xl" shadow="md" border="1px" borderColor={borderColor}>
+                <CardBody p={6}>
+                  <VStack align="stretch" spacing={4}>
+                    <Heading size="sm" color={textColor} fontWeight="bold">
+                      Quick Actions
+                    </Heading>
+                    <VStack spacing={3}>
+                      <Button
+                        leftIcon={<FiCheckCircle />}
+                        colorScheme={task.status === TaskStatus.DONE ? "gray" : "green"}
                         variant="outline"
-                      >
-                        <Badge colorScheme={getStatusColor(task.status)}>
-                          {task.status.replace("_", " ")}
-                        </Badge>
-                      </MenuButton>
-                      <MenuList>
-                        {Object.values(TaskStatus).map((status) => (
-                          <MenuItem
-                            key={status}
-                              onClick={() =>
-                                handleQuickUpdate("status", status)
-                              }
-                          >
-                              <Badge
-                                colorScheme={getStatusColor(status)}
-                                mr={2}
-                              >
-                              {status.replace("_", " ")}
-                            </Badge>
-                          </MenuItem>
-                        ))}
-                      </MenuList>
-                    </Menu>
-                  )}
-                </Box>
-
-                {/* Priority */}
-                <Box>
-                    <Text
-                      fontSize="sm"
-                      fontWeight="semibold"
-                      color={mutedColor}
-                      mb={2}
-                    >
-                    Priority
-                  </Text>
-                  {isEditing ? (
-                    <Select
-                      value={editedTask.priority || ""}
-                      onChange={(e) =>
-                        setEditedTask({
-                          ...editedTask,
-                          priority: e.target.value as TaskPriority,
-                        })
-                      }
-                      size="sm"
-                    >
-                      {Object.values(TaskPriority).map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <Menu>
-                      <MenuButton
-                        as={Button}
-                        rightIcon={<FiChevronDown />}
                         size="sm"
-                        width="full"
-                        variant="outline"
-                      >
-                        <HStack>
-                            <Icon
-                              as={FiFlag}
-                              color={`${getPriorityColor(task.priority)}.500`}
-                            />
-                          <Text>{task.priority}</Text>
-                        </HStack>
-                      </MenuButton>
-                      <MenuList>
-                        {Object.values(TaskPriority).map((priority) => (
-                          <MenuItem
-                            key={priority}
-                              onClick={() =>
-                                handleQuickUpdate("priority", priority)
-                              }
-                          >
-                            <Icon
-                              as={FiFlag}
-                              color={`${getPriorityColor(priority)}.500`}
-                              mr={2}
-                            />
-                            {priority}
-                          </MenuItem>
-                        ))}
-                      </MenuList>
-                    </Menu>
-                  )}
-                </Box>
-
-                {/* Assignee */}
-                <Box>
-                    <Text
-                      fontSize="sm"
-                      fontWeight="semibold"
-                      color={mutedColor}
-                      mb={2}
-                    >
-                    Assignee
-                  </Text>
-                  {isEditing ? (
-                    <Select
-                      value={editedTask.assignee_id || ""}
-                      onChange={(e) =>
-                        setEditedTask({
-                          ...editedTask,
-                          assignee_id: e.target.value || undefined,
-                        })
-                      }
-                      size="sm"
-                    >
-                      <option value="">Unassigned</option>
-                      {users.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.full_name || user.email}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <Popover>
-                      <PopoverTrigger>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          width="full"
-                          leftIcon={<FiUser />}
-                        >
-                          {assignee ? (
-                            <HStack spacing={2}>
-                                <Avatar
-                                  size="xs"
-                                  name={assignee.full_name || assignee.email}
-                                />
-                                <Text>
-                                  {assignee.full_name || assignee.email}
-                                </Text>
-                            </HStack>
-                          ) : (
-                            "Unassigned"
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent>
-                        <PopoverArrow />
-                        <PopoverCloseButton />
-                        <PopoverHeader>Assign to</PopoverHeader>
-                        <PopoverBody>
-                          <VStack align="stretch" spacing={2}>
-                            <Input
-                              placeholder="Search users..."
-                              size="sm"
-                              value={searchQuery}
-                              onChange={(e) => setSearchQuery(e.target.value)}
-                            />
-                              <VStack
-                                align="stretch"
-                                maxH="200px"
-                                overflowY="auto"
-                              >
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                justifyContent="flex-start"
-                                  onClick={() =>
-                                    handleQuickUpdate("assignee_id", null)
-                                  }
-                              >
-                                Unassigned
-                              </Button>
-                              {users
-                                .filter(
-                                  (u) =>
-                                    !searchQuery ||
-                                      u.full_name
-                                        ?.toLowerCase()
-                                        .includes(searchQuery.toLowerCase()) ||
-                                      u.email
-                                        .toLowerCase()
-                                        .includes(searchQuery.toLowerCase())
-                                )
-                                .map((user) => (
-                                  <Button
-                                    key={user.id}
-                                    variant="ghost"
-                                    size="sm"
-                                    justifyContent="flex-start"
-                                      onClick={() =>
-                                        handleQuickUpdate(
-                                          "assignee_id",
-                                          user.id
-                                        )
-                                      }
-                                  >
-                                    <HStack spacing={2}>
-                                      <Avatar
-                                        size="xs"
-                                        name={user.full_name || user.email}
-                                      />
-                                        <Text>
-                                          {user.full_name || user.email}
-                                        </Text>
-                                    </HStack>
-                                  </Button>
-                                ))}
-                            </VStack>
-                          </VStack>
-                        </PopoverBody>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                </Box>
-
-                {/* Due Date */}
-                <Box>
-                    <Text
-                      fontSize="sm"
-                      fontWeight="semibold"
-                      color={mutedColor}
-                      mb={2}
-                    >
-                    Due Date
-                  </Text>
-                  {isEditing ? (
-                    <Input
-                      type="date"
-                      value={
-                        editedTask.due_date
-                            ? new Date(editedTask.due_date)
-                                .toISOString()
-                                .split("T")[0]
-                          : ""
-                      }
-                      onChange={(e) =>
-                        setEditedTask({
-                          ...editedTask,
-                          due_date: e.target.value || undefined,
-                        })
-                      }
-                      size="sm"
-                    />
-                  ) : (
-                    <HStack
-                      p={2}
-                      bg={isOverdue ? "red.50" : hoverBg}
-                      borderRadius="md"
-                      spacing={2}
-                    >
-                      <Icon
-                        as={FiCalendar}
-                        color={isOverdue ? "red.500" : mutedColor}
-                      />
-                      <Text
-                        fontSize="sm"
-                        color={isOverdue ? "red.500" : textColor}
-                        fontWeight={isOverdue ? "semibold" : "normal"}
-                      >
-                        {formatDueDate(task.due_date)}
-                      </Text>
-                        {isOverdue && (
-                          <Icon
-                            as={FiAlertCircle}
-                            color="red.500"
-                            boxSize={3}
-                          />
-                        )}
-                    </HStack>
-                  )}
-                </Box>
-
-                {/* Project */}
-                <Box>
-                    <Text
-                      fontSize="sm"
-                      fontWeight="semibold"
-                      color={mutedColor}
-                      mb={2}
-                    >
-                    Project
-                  </Text>
-                  {isEditing ? (
-                    <Select
-                      value={editedTask.project_id || ""}
-                      onChange={(e) =>
-                        setEditedTask({
-                          ...editedTask,
-                          project_id: e.target.value || undefined,
-                        })
-                      }
-                      size="sm"
-                    >
-                      <option value="">No project</option>
-                      {projectsData?.projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : currentProject ? (
-                    <HStack
-                      p={2}
-                      bg={hoverBg}
-                      borderRadius="md"
-                      spacing={2}
-                      as={Link}
-                      to={`/projects/${currentProject.id}`}
-                        _hover={{
-                          bg: useColorModeValue("gray.100", "gray.700"),
+                        w="full"
+                        onClick={() => {
+                          const newStatus = task.status === TaskStatus.DONE ? TaskStatus.TODO : TaskStatus.DONE;
+                          updateTaskMutation.mutate({ status: newStatus });
                         }}
-                    >
-                      <Icon as={FiFolder} color={currentProject.color} />
-                      <Text fontSize="sm" color={textColor}>
-                        {currentProject.name}
-                      </Text>
-                    </HStack>
-                  ) : (
-                    <Text fontSize="sm" color={mutedColor}>
-                      No project assigned
-                    </Text>
-                  )}
-                </Box>
-
-                {/* Progress */}
-                {task.completed_percentage > 0 && (
-                  <Box>
-                    <HStack justify="space-between" mb={2}>
-                        <Text
-                          fontSize="sm"
-                          fontWeight="semibold"
-                          color={mutedColor}
-                        >
-                        Progress
-                      </Text>
-                      <Text fontSize="sm" color={textColor}>
-                        {task.completed_percentage}%
-                      </Text>
-                    </HStack>
-                    <Progress
-                      value={task.completed_percentage}
-                      colorScheme="green"
-                      size="sm"
-                      borderRadius="full"
-                    />
-                  </Box>
-                )}
-
-                <Divider />
-
-                {/* Metadata */}
-                <VStack align="stretch" spacing={3}>
-                  <Box>
-                      <Text
-                        fontSize="xs"
-                        fontWeight="semibold"
-                        color={mutedColor}
-                        mb={1}
+                        isLoading={updateTaskMutation.isPending}
                       >
-                      CREATED
-                    </Text>
-                    <Text fontSize="sm" color={textColor}>
-                        {format(
-                          new Date(task.created_at),
-                          "MMM dd, yyyy 'at' h:mm a"
-                        )}
-                    </Text>
-                  </Box>
-                  {task.updated_at && (
-                    <Box>
-                        <Text
-                          fontSize="xs"
-                          fontWeight="semibold"
-                          color={mutedColor}
-                          mb={1}
-                        >
-                        LAST UPDATED
-                      </Text>
-                      <Text fontSize="sm" color={textColor}>
-                        {formatDistanceToNow(new Date(task.updated_at), {
-                          addSuffix: true,
-                        })}
-                      </Text>
-                    </Box>
-                  )}
-                  {task.completed_at && (
-                    <Box>
-                        <Text
-                          fontSize="xs"
-                          fontWeight="semibold"
-                          color={mutedColor}
-                          mb={1}
-                        >
-                        COMPLETED
-                      </Text>
-                      <Text fontSize="sm" color={textColor}>
-                          {format(
-                            new Date(task.completed_at),
-                            "MMM dd, yyyy 'at' h:mm a"
-                          )}
-                      </Text>
-                    </Box>
-                  )}
-                </VStack>
-              </VStack>
-            </CardBody>
-          </Card>
-        </GridItem>
-      </Grid>
+                        {task.status === TaskStatus.DONE ? "Reopen Task" : "Mark Complete"}
+                      </Button>
+                      <Button
+                        leftIcon={<FiEdit2 />}
+                        variant="outline"
+                        size="sm"
+                        w="full"
+                        onClick={() => setIsEditing(!isEditing)}
+                        color={textColor}
+                        borderColor={borderColor}
+                        _hover={{ bg: hoverBg }}
+                      >
+                        {isEditing ? "Cancel Edit" : "Edit Task"}
+                      </Button>
+                      <Button
+                        leftIcon={<FiShare2 />}
+                        variant="outline"
+                        size="sm"
+                        w="full"
+                        onClick={handleShare}
+                        color={textColor}
+                        borderColor={borderColor}
+                        _hover={{ bg: hoverBg }}
+                      >
+                        Share Task
+                      </Button>
+                    </VStack>
+                  </VStack>
+                </CardBody>
+              </MotionCard>
+            </VStack>
+          </SimpleGrid>
+        </VStack>
+      </Box>
 
       {/* Delete Confirmation Modal */}
-      <Modal isOpen={isDeleteOpen} onClose={onDeleteClose}>
-        <ModalOverlay />
+      <Modal isOpen={isOpen} onClose={onClose} isCentered>
+        <ModalOverlay backdropFilter="blur(4px)" />
         <ModalContent>
           <ModalHeader>Delete Task</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-              Are you sure you want to delete this task? This action cannot be
-              undone.
+            <Text>
+              Are you sure you want to delete this task? This action cannot be undone.
+            </Text>
           </ModalBody>
           <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onDeleteClose}>
+            <Button variant="ghost" mr={3} onClick={onClose}>
               Cancel
             </Button>
             <Button
@@ -2021,7 +1250,8 @@ export function TaskDetail() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </Container>
-    </Box>
+    </MotionBox>
   );
 }
+
+export default TaskDetail;

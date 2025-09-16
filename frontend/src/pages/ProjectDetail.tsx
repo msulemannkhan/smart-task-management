@@ -21,6 +21,7 @@ import {
   StatHelpText,
   StatArrow,
   useColorModeValue,
+  Avatar as ChakraAvatar,
   AvatarGroup,
   Tooltip,
   Tabs,
@@ -30,6 +31,13 @@ import {
   TabPanel,
   Progress,
   IconButton,
+  Skeleton,
+  SkeletonText,
+  SkeletonCircle,
+  useToast,
+  Fade,
+  ScaleFade,
+  Collapse,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -61,10 +69,14 @@ import { CreateTaskModal } from "../components/tasks/CreateTaskModal";
 import { UserAvatar } from "../components/common/UserAvatar";
 import { ActivityService, type Activity } from "../services/activityService";
 import { formatDistanceToNow } from "date-fns";
+import { TaskCard } from "../components/tasks/TaskCard";
+import { useTask } from "../context/TaskContext";
 
 export function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
+  const { setSelectedTask } = useTask();
   const [project, setProject] = useState<
     ProjectListResponse["projects"][0] | null
   >(null);
@@ -73,8 +85,10 @@ export function ProjectDetail() {
   const [taskStats, setTaskStats] = useState<any>(null);
   const [recentActivities, setRecentActivities] = useState<Activity[]>([]);
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allTasksLoading, setAllTasksLoading] = useState(true);
   const [selectedProjectForMembers, setSelectedProjectForMembers] = useState<{
     id: string;
     name: string;
@@ -88,9 +102,74 @@ export function ProjectDetail() {
     status: string;
     color: string;
   } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Refresh data function
+  const refreshData = async () => {
+    if (!projectId) return;
+
+    try {
+      setIsRefreshing(true);
+      setError(null);
+
+      // Fetch all data in parallel
+      const [
+        projectResponse,
+        membersResponse,
+        taskStatsResponse,
+        activitiesResponse,
+        tasksResponse,
+        allTasksResponse,
+      ] = await Promise.all([
+        ProjectService.get(projectId),
+        ProjectMemberService.list(projectId),
+        TaskService.getTaskStats(projectId),
+        ActivityService.getProjectActivities(projectId, 10),
+        TaskService.getTasks({ project_id: projectId, per_page: 5 }),
+        TaskService.getTasks({ project_id: projectId, per_page: 100 }),
+      ]);
+
+      setProject(projectResponse);
+      setMembers(membersResponse.members || []);
+      setMemberCount(membersResponse.members?.length || 0);
+      setTaskStats(taskStatsResponse);
+      setRecentActivities(activitiesResponse.activities || []);
+      setRecentTasks(tasksResponse.tasks || []);
+      setAllTasks(allTasksResponse.tasks || []);
+
+      toast({
+        title: "Data refreshed",
+        status: "success",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+      toast({
+        title: "Failed to refresh data",
+        status: "error",
+        duration: 3000,
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
+  const [tasksLoading, setTasksLoading] = useState(true);
 
   useEffect(() => {
     if (!projectId) return;
+
+    // Validate UUID format
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(projectId)) {
+      setError("Invalid project ID format");
+      setTimeout(() => {
+        navigate("/projects");
+      }, 2000);
+      return;
+    }
 
     const fetchProjectData = async () => {
       try {
@@ -119,25 +198,34 @@ export function ProjectDetail() {
         }
 
         // Fetch task stats
+        setStatsLoading(true);
         try {
           const stats = await TaskService.getTaskStats(projectId);
           setTaskStats(stats);
-        } catch {
+        } catch (error) {
+          console.error('Failed to fetch task stats:', error);
           setTaskStats(null);
+        } finally {
+          setStatsLoading(false);
         }
 
         // Fetch recent activities
+        setActivitiesLoading(true);
         try {
           const activities = await ActivityService.getRecentActivities(
             projectId,
             5
           );
           setRecentActivities(activities.activities || []);
-        } catch {
+        } catch (error) {
+          console.error('Failed to fetch activities:', error);
           setRecentActivities([]);
+        } finally {
+          setActivitiesLoading(false);
         }
 
         // Fetch recent tasks
+        setTasksLoading(true);
         try {
           const tasksRes = await TaskService.getTasks({
             project_id: projectId,
@@ -150,12 +238,49 @@ export function ProjectDetail() {
                 index === self.findIndex((t) => t.id === task.id)
             ) || [];
           setRecentTasks(uniqueTasks);
-        } catch {
+        } catch (error) {
+          console.error('Failed to fetch tasks:', error);
           setRecentTasks([]);
+        } finally {
+          setTasksLoading(false);
+        }
+
+        // Fetch all tasks
+        setAllTasksLoading(true);
+        try {
+          const allTasksRes = await TaskService.getTasks({
+            project_id: projectId,
+            per_page: 100,
+          });
+          // Filter out any duplicate tasks based on ID
+          const uniqueAllTasks =
+            allTasksRes.tasks?.filter(
+              (task, index, self) =>
+                index === self.findIndex((t) => t.id === task.id)
+            ) || [];
+          setAllTasks(uniqueAllTasks);
+        } catch (error) {
+          console.error('Failed to fetch all tasks:', error);
+          setAllTasks([]);
+        } finally {
+          setAllTasksLoading(false);
         }
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to fetch project data";
+        let errorMessage = "Failed to fetch project data";
+
+        if (err instanceof Error) {
+          errorMessage = err.message;
+          // If project not found (404), redirect to projects list after a delay
+          if (
+            err.message.includes("404") ||
+            err.message.toLowerCase().includes("not found")
+          ) {
+            setTimeout(() => {
+              navigate("/projects");
+            }, 3000);
+          }
+        }
+
         setError(errorMessage);
       } finally {
         setIsLoading(false);
@@ -196,12 +321,21 @@ export function ProjectDetail() {
     setTaskModalOpen(true);
   };
 
-  const handleTaskCreated = () => {
-    // Refresh task stats
+  const handleTaskCreated = async () => {
+    // Refresh task stats and tasks
     if (projectId) {
-      TaskService.getTaskStats(projectId)
-        .then(setTaskStats)
-        .catch(console.error);
+      try {
+        const [stats, recentTasksRes, allTasksRes] = await Promise.all([
+          TaskService.getTaskStats(projectId),
+          TaskService.getTasks({ project_id: projectId, per_page: 5 }),
+          TaskService.getTasks({ project_id: projectId, per_page: 100 }),
+        ]);
+        setTaskStats(stats);
+        setRecentTasks(recentTasksRes.tasks || []);
+        setAllTasks(allTasksRes.tasks || []);
+      } catch (error) {
+        console.error("Failed to refresh tasks after creation:", error);
+      }
     }
   };
 
@@ -250,14 +384,14 @@ export function ProjectDetail() {
   return (
     <>
       <Box minH="100vh" bg={bgColor}>
-        <Box p={8}>
-          <VStack align="stretch" spacing={8}>
+        <Box p={3}>
+          <VStack align="stretch" spacing={3}>
             {/* Enhanced Header with Gradient Background */}
             <Box
               bg={cardBg}
-              borderRadius="2xl"
-              p={8}
-              shadow="lg"
+              borderRadius="lg"
+              p={3}
+              shadow="sm"
               border="1px"
               borderColor={borderColor}
               position="relative"
@@ -279,7 +413,7 @@ export function ProjectDetail() {
                 position="relative"
                 zIndex={1}
               >
-                <HStack spacing={6}>
+                <HStack spacing={4}>
                   <Button
                     variant="ghost"
                     leftIcon={<FiArrowLeft />}
@@ -295,7 +429,7 @@ export function ProjectDetail() {
                     h="8"
                     borderColor={borderColor}
                   />
-                  <HStack spacing={6}>
+                  <HStack spacing={4}>
                     <Box
                       w={8}
                       h={8}
@@ -309,12 +443,12 @@ export function ProjectDetail() {
                     >
                       <Icon as={FiFolder} color="white" boxSize={5} />
                     </Box>
-                    <VStack align="start" spacing={2}>
-                      <Heading size="xl" color={textColor} fontWeight="bold">
+                    <VStack align="start" spacing={1}>
+                      <Heading size="md" color={textColor} fontWeight="bold">
                         {project.name}
                       </Heading>
                       <Text
-                        fontSize="lg"
+                        fontSize="sm"
                         color={mutedColor}
                         maxW="600px"
                         lineHeight="1.5"
@@ -325,17 +459,19 @@ export function ProjectDetail() {
                     </VStack>
                   </HStack>
                 </HStack>
-                <HStack spacing={4}>
+                <HStack spacing={3}>
                   {/* Member Avatars */}
-                  <AvatarGroup size="md" max={4}>
+                  <AvatarGroup size="sm" max={4}>
                     {members.map((member) => (
                       <Tooltip
                         key={member.id}
                         label={member.user?.full_name || member.user?.email}
                       >
-                        <Box>
-                          <UserAvatar user={member.user} size="md" />
-                        </Box>
+                        <ChakraAvatar
+                          src={member.user?.avatar_url}
+                          name={member.user?.full_name || member.user?.username}
+                          size="sm"
+                        />
                       </Tooltip>
                     ))}
                   </AvatarGroup>
@@ -375,23 +511,23 @@ export function ProjectDetail() {
 
             {/* Enhanced Project Stats */}
             {taskStats && (
-              <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={6}>
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={3}>
                 <Card
                   bg={cardBg}
-                  borderRadius="2xl"
-                  shadow="md"
+                  borderRadius="lg"
+                  shadow="sm"
                   border="1px"
                   borderColor={borderColor}
-                  _hover={{ shadow: "lg", transform: "translateY(-2px)" }}
+                  _hover={{ shadow: "sm", transform: "translateY(-1px)" }}
                   transition="all 0.3s ease"
                   position="relative"
                   overflow="hidden"
                 >
-                  <CardBody p={8}>
+                  <CardBody p={2}>
                     <Stat>
                       <HStack justify="space-between" align="center" mb={4}>
                         <StatLabel
-                          fontSize="sm"
+                          fontSize="xs"
                           color={mutedColor}
                           fontWeight="semibold"
                           textTransform="uppercase"
@@ -408,9 +544,9 @@ export function ProjectDetail() {
                         />
                       </HStack>
                       <StatNumber
-                        fontSize="3xl"
+                        fontSize="lg"
                         color={textColor}
-                        mb={2}
+                        mb={1}
                         fontWeight="bold"
                       >
                         {taskStats.total || 0}
@@ -426,18 +562,18 @@ export function ProjectDetail() {
 
                 <Card
                   bg={cardBg}
-                  borderRadius="2xl"
-                  shadow="md"
+                  borderRadius="lg"
+                  shadow="sm"
                   border="1px"
                   borderColor={borderColor}
-                  _hover={{ shadow: "lg", transform: "translateY(-2px)" }}
+                  _hover={{ shadow: "sm", transform: "translateY(-1px)" }}
                   transition="all 0.3s ease"
                 >
-                  <CardBody p={8}>
+                  <CardBody p={2}>
                     <Stat>
                       <HStack justify="space-between" align="center" mb={4}>
                         <StatLabel
-                          fontSize="sm"
+                          fontSize="xs"
                           color={mutedColor}
                           fontWeight="semibold"
                           textTransform="uppercase"
@@ -454,9 +590,9 @@ export function ProjectDetail() {
                         />
                       </HStack>
                       <StatNumber
-                        fontSize="3xl"
+                        fontSize="lg"
                         color={textColor}
-                        mb={2}
+                        mb={1}
                         fontWeight="bold"
                       >
                         {taskStats.in_progress || 0}
@@ -472,18 +608,18 @@ export function ProjectDetail() {
 
                 <Card
                   bg={cardBg}
-                  borderRadius="2xl"
-                  shadow="md"
+                  borderRadius="lg"
+                  shadow="sm"
                   border="1px"
                   borderColor={borderColor}
-                  _hover={{ shadow: "lg", transform: "translateY(-2px)" }}
+                  _hover={{ shadow: "sm", transform: "translateY(-1px)" }}
                   transition="all 0.3s ease"
                 >
-                  <CardBody p={8}>
+                  <CardBody p={2}>
                     <Stat>
                       <HStack justify="space-between" align="center" mb={4}>
                         <StatLabel
-                          fontSize="sm"
+                          fontSize="xs"
                           color={mutedColor}
                           fontWeight="semibold"
                           textTransform="uppercase"
@@ -500,9 +636,9 @@ export function ProjectDetail() {
                         />
                       </HStack>
                       <StatNumber
-                        fontSize="3xl"
+                        fontSize="lg"
                         color={textColor}
-                        mb={2}
+                        mb={1}
                         fontWeight="bold"
                       >
                         {taskStats.completed || 0}
@@ -517,18 +653,18 @@ export function ProjectDetail() {
 
                 <Card
                   bg={cardBg}
-                  borderRadius="2xl"
-                  shadow="md"
+                  borderRadius="lg"
+                  shadow="sm"
                   border="1px"
                   borderColor={borderColor}
-                  _hover={{ shadow: "lg", transform: "translateY(-2px)" }}
+                  _hover={{ shadow: "sm", transform: "translateY(-1px)" }}
                   transition="all 0.3s ease"
                 >
-                  <CardBody p={8}>
+                  <CardBody p={2}>
                     <Stat>
                       <HStack justify="space-between" align="center" mb={4}>
                         <StatLabel
-                          fontSize="sm"
+                          fontSize="xs"
                           color={mutedColor}
                           fontWeight="semibold"
                           textTransform="uppercase"
@@ -545,9 +681,9 @@ export function ProjectDetail() {
                         />
                       </HStack>
                       <StatNumber
-                        fontSize="3xl"
+                        fontSize="lg"
                         color={textColor}
-                        mb={2}
+                        mb={1}
                         fontWeight="bold"
                       >
                         {taskStats.overdue || 0}
@@ -584,6 +720,19 @@ export function ProjectDetail() {
                     px={6}
                     py={2}
                   >
+                    <HStack spacing={3} ml="auto">
+                      <IconButton
+                        aria-label="Refresh data"
+                        icon={<Icon as={FiActivity} />}
+                        onClick={refreshData}
+                        isLoading={isRefreshing}
+                        size="sm"
+                        variant="ghost"
+                        color={textColor}
+                        _hover={{ bg: cardBg }}
+                        spin={isRefreshing}
+                      />
+                    </HStack>
                     <Tab
                       color={textColor}
                       _selected={{
@@ -640,6 +789,21 @@ export function ProjectDetail() {
                       _hover={{ color: accentColor }}
                     >
                       <HStack spacing={2}>
+                        <Icon as={FiCheckCircle} />
+                        <Text>All Tasks</Text>
+                      </HStack>
+                    </Tab>
+                    <Tab
+                      color={textColor}
+                      _selected={{
+                        color: accentColor,
+                        borderColor: accentColor,
+                        bg: cardBg,
+                        fontWeight: "semibold",
+                      }}
+                      _hover={{ color: accentColor }}
+                    >
+                      <HStack spacing={2}>
                         <Icon as={FiTrendingUp} />
                         <Text>Analytics</Text>
                       </HStack>
@@ -648,8 +812,8 @@ export function ProjectDetail() {
 
                   <TabPanels>
                     {/* Enhanced Overview Tab */}
-                    <TabPanel px={6} py={8}>
-                      <VStack align="stretch" spacing={6}>
+                    <TabPanel px={4} py={6}>
+                      <VStack align="stretch" spacing={4}>
                         <HStack justify="space-between" mb={6}>
                           <Heading
                             size="md"
@@ -685,7 +849,7 @@ export function ProjectDetail() {
 
                         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
                           <Box
-                            p={6}
+                            p={4}
                             bg={hoverBg}
                             borderRadius="xl"
                             border="1px solid"
@@ -726,7 +890,7 @@ export function ProjectDetail() {
                             </HStack>
                           </Box>
                           <Box
-                            p={6}
+                            p={4}
                             bg={hoverBg}
                             borderRadius="xl"
                             border="1px solid"
@@ -765,7 +929,7 @@ export function ProjectDetail() {
                         </SimpleGrid>
 
                         {/* Enhanced Team Members Section */}
-                        <Box
+                        {/* <Box
                           p={6}
                           bg={hoverBg}
                           borderRadius="xl"
@@ -809,13 +973,15 @@ export function ProjectDetail() {
                                   member.user?.full_name || member.user?.email
                                 } (${member.role})`}
                               >
-                                <Box>
-                                  <UserAvatar user={member.user} size="lg" />
-                                </Box>
+                                <ChakraAvatar
+                                  src={member.user?.avatar_url}
+                                  name={member.user?.full_name || member.user?.username}
+                                  size="lg"
+                                />
                               </Tooltip>
                             ))}
                           </AvatarGroup>
-                        </Box>
+                        </Box> */}
 
                         {/* Enhanced Task Progress */}
                         <Box
@@ -848,7 +1014,7 @@ export function ProjectDetail() {
                               </VStack>
                             </HStack>
                             <Text
-                              fontSize="2xl"
+                              fontSize="xl"
                               color={textColor}
                               fontWeight="bold"
                             >
@@ -886,57 +1052,80 @@ export function ProjectDetail() {
                     </TabPanel>
 
                     {/* Enhanced Recent Activity Tab */}
-                    <TabPanel px={6} py={8}>
+                    <TabPanel px={4} py={6}>
                       <VStack align="stretch" spacing={4}>
-                        {recentActivities.length > 0 ? (
-                          recentActivities.map((activity) => (
+                        {activitiesLoading ? (
+                          Array.from({ length: 3 }).map((_, index) => (
                             <Box
-                              key={activity.id}
+                              key={index}
                               p={4}
                               bg={hoverBg}
                               borderRadius="xl"
                               border="1px solid"
                               borderColor={borderColor}
-                              _hover={{
-                                shadow: "md",
-                                transform: "translateY(-1px)",
-                              }}
-                              transition="all 0.2s ease"
                             >
                               <HStack spacing={4}>
-                                <Box p={2} bg={accentColor} borderRadius="lg">
-                                  <Icon
-                                    as={FiActivity}
-                                    color="white"
-                                    boxSize={5}
-                                  />
-                                </Box>
+                                <SkeletonCircle size="10" />
                                 <Box flex={1}>
-                                  <Text
-                                    fontSize="md"
-                                    color={textColor}
-                                    fontWeight="medium"
-                                    mb={1}
-                                  >
-                                    {activity.description}
-                                  </Text>
-                                  <Text fontSize="sm" color={mutedColor}>
-                                    {formatDistanceToNow(
-                                      new Date(activity.created_at),
-                                      { addSuffix: true }
-                                    )}
-                                  </Text>
+                                  <SkeletonText noOfLines={2} spacing={2} />
                                 </Box>
                               </HStack>
                             </Box>
                           ))
+                        ) : recentActivities.length > 0 ? (
+                          <Fade in={!activitiesLoading}>
+                            <VStack align="stretch" spacing={4}>
+                              {recentActivities.map((activity) => (
+                                <ScaleFade key={activity.id} in={!activitiesLoading}>
+                                  <Box
+                                    p={4}
+                                    bg={hoverBg}
+                                    borderRadius="xl"
+                                    border="1px solid"
+                                    borderColor={borderColor}
+                                    _hover={{
+                                      shadow: "md",
+                                      transform: "translateY(-1px)",
+                                    }}
+                                    transition="all 0.2s ease"
+                                  >
+                                    <HStack spacing={4}>
+                                      <Box p={2} bg={accentColor} borderRadius="lg">
+                                        <Icon
+                                          as={FiActivity}
+                                          color="white"
+                                          boxSize={5}
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text
+                                          fontSize="md"
+                                          color={textColor}
+                                          fontWeight="medium"
+                                          mb={1}
+                                        >
+                                          {activity.description}
+                                        </Text>
+                                        <Text fontSize="sm" color={mutedColor}>
+                                          {formatDistanceToNow(
+                                            new Date(activity.created_at),
+                                            { addSuffix: true }
+                                          )}
+                                        </Text>
+                                      </Box>
+                                    </HStack>
+                                  </Box>
+                                </ScaleFade>
+                              ))}
+                            </VStack>
+                          </Fade>
                         ) : (
                           <Box textAlign="center" py={12}>
                             <Icon
                               as={FiActivity}
                               boxSize={12}
                               color={mutedColor}
-                              mb={4}
+                              mb={3}
                             />
                             <Text
                               color={mutedColor}
@@ -955,92 +1144,115 @@ export function ProjectDetail() {
                     </TabPanel>
 
                     {/* Enhanced Recent Tasks Tab */}
-                    <TabPanel px={6} py={8}>
+                    <TabPanel px={4} py={6}>
                       <VStack align="stretch" spacing={4}>
-                        {recentTasks.length > 0 ? (
-                          recentTasks.map((task) => (
+                        {tasksLoading ? (
+                          Array.from({ length: 3 }).map((_, index) => (
                             <Box
-                              key={task.id}
+                              key={index}
                               p={4}
                               bg={hoverBg}
                               borderRadius="xl"
                               border="1px solid"
                               borderColor={borderColor}
-                              cursor="pointer"
-                              _hover={{
-                                shadow: "md",
-                                transform: "translateY(-1px)",
-                                borderColor: accentColor,
-                              }}
-                              transition="all 0.2s ease"
-                              onClick={() => navigate(`/tasks/${task.id}`)}
                             >
                               <HStack spacing={4}>
-                                <Box
-                                  p={2}
-                                  bg={
-                                    task.status === "completed"
-                                      ? successColor
-                                      : task.status === "in_progress"
-                                      ? warningColor
-                                      : mutedColor
-                                  }
-                                  borderRadius="lg"
-                                >
-                                  <Icon
-                                    as={
-                                      task.status === "completed"
-                                        ? FiCheckCircle
-                                        : task.status === "in_progress"
-                                        ? FiClock
-                                        : FiAlertCircle
-                                    }
-                                    color="white"
-                                    boxSize={5}
-                                  />
-                                </Box>
+                                <SkeletonCircle size="10" />
                                 <Box flex={1}>
-                                  <Text
-                                    fontSize="md"
-                                    fontWeight="semibold"
-                                    color={textColor}
-                                    mb={2}
-                                  >
-                                    {task.title}
-                                  </Text>
-                                  <HStack spacing={3} flexWrap="wrap">
-                                    <Badge
-                                      size="sm"
-                                      colorScheme={
-                                        task.priority === "urgent"
-                                          ? "red"
-                                          : task.priority === "high"
-                                          ? "orange"
-                                          : task.priority === "medium"
-                                          ? "yellow"
-                                          : "gray"
-                                      }
-                                      borderRadius="full"
-                                      px={3}
-                                      py={1}
-                                    >
-                                      {task.priority}
-                                    </Badge>
-                                    <Text fontSize="sm" color={mutedColor}>
-                                      {task.assignee?.full_name || "Unassigned"}
-                                    </Text>
-                                  </HStack>
+                                  <SkeletonText noOfLines={3} spacing={2} />
                                 </Box>
                               </HStack>
                             </Box>
                           ))
+                        ) : recentTasks.length > 0 ? (
+                          <Fade in={!tasksLoading}>
+                            <VStack align="stretch" spacing={4}>
+                              {recentTasks.map((task) => (
+                                <ScaleFade key={task.id} in={!tasksLoading}>
+                                  <Box
+                                    p={4}
+                                    bg={hoverBg}
+                                    borderRadius="xl"
+                                    border="1px solid"
+                                    borderColor={borderColor}
+                                    cursor="pointer"
+                                    _hover={{
+                                      shadow: "md",
+                                      transform: "translateY(-1px)",
+                                      borderColor: accentColor,
+                                    }}
+                                    transition="all 0.2s ease"
+                                    onClick={() => setSelectedTask(task)}
+                                  >
+                                    <HStack spacing={4}>
+                                      <Box
+                                        p={2}
+                                        bg={
+                                          task.status === "completed"
+                                            ? successColor
+                                            : task.status === "in_progress"
+                                            ? warningColor
+                                            : mutedColor
+                                        }
+                                        borderRadius="lg"
+                                      >
+                                        <Icon
+                                          as={
+                                            task.status === "completed"
+                                              ? FiCheckCircle
+                                              : task.status === "in_progress"
+                                              ? FiClock
+                                              : FiAlertCircle
+                                          }
+                                          color="white"
+                                          boxSize={5}
+                                        />
+                                      </Box>
+                                      <Box flex={1}>
+                                        <Text
+                                          fontSize="md"
+                                          fontWeight="semibold"
+                                          color={textColor}
+                                          mb={2}
+                                        >
+                                          {task.title}
+                                        </Text>
+                                        <HStack spacing={3} flexWrap="wrap">
+                                          <Badge
+                                            size="sm"
+                                            colorScheme={
+                                              task.priority === "urgent"
+                                                ? "red"
+                                                : task.priority === "high"
+                                                ? "orange"
+                                                : task.priority === "medium"
+                                                ? "yellow"
+                                                : "gray"
+                                            }
+                                            borderRadius="full"
+                                            px={3}
+                                            py={1}
+                                          >
+                                            {task.priority}
+                                          </Badge>
+                                          <Text fontSize="sm" color={mutedColor}>
+                                            {task.assignee?.full_name || "Unassigned"}
+                                          </Text>
+                                        </HStack>
+                                      </Box>
+                                    </HStack>
+                                  </Box>
+                                </ScaleFade>
+                              ))}
+                            </VStack>
+                          </Fade>
                         ) : (
                           <Box textAlign="center" py={12}>
                             <Icon
                               as={FiList}
                               boxSize={12}
                               color={mutedColor}
-                              mb={4}
+                              mb={3}
                             />
                             <Text
                               color={mutedColor}
@@ -1071,8 +1283,92 @@ export function ProjectDetail() {
                       </VStack>
                     </TabPanel>
 
+                    {/* All Tasks Tab */}
+                    <TabPanel px={4} py={6}>
+                      <VStack align="stretch" spacing={4}>
+                        <HStack justify="space-between" align="center">
+                          <Heading size="md" color={textColor} fontWeight="bold">
+                            All Project Tasks
+                          </Heading>
+                          <Button
+                            colorScheme="blue"
+                            leftIcon={<FiPlus />}
+                            onClick={handleNewTask}
+                            size="sm"
+                            _hover={{ transform: "translateY(-1px)", shadow: "md" }}
+                          >
+                            New Task
+                          </Button>
+                        </HStack>
+
+                        {allTasksLoading ? (
+                          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                            {Array.from({ length: 6 }).map((_, index) => (
+                              <Box
+                                key={index}
+                                p={5}
+                                bg={hoverBg}
+                                borderRadius="xl"
+                                border="1px solid"
+                                borderColor={borderColor}
+                              >
+                                <VStack align="start" spacing={3}>
+                                  <SkeletonText noOfLines={2} spacing={2} />
+                                  <HStack spacing={2}>
+                                    <Skeleton height="20px" width="60px" />
+                                    <Skeleton height="20px" width="80px" />
+                                  </HStack>
+                                  <Skeleton height="16px" width="120px" />
+                                </VStack>
+                              </Box>
+                            ))}
+                          </SimpleGrid>
+                        ) : allTasks.length > 0 ? (
+                          <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                            {allTasks.map((task) => (
+                              <TaskCard
+                                key={task.id}
+                                task={task}
+                                onTaskClick={(task) => setSelectedTask(task)}
+                                showProject={false}
+                                compact={true}
+                                interactive={true}
+                              />
+                            ))}
+                          </SimpleGrid>
+                        ) : (
+                          <Box textAlign="center" py={12}>
+                            <Icon
+                              as={FiCheckCircle}
+                              boxSize={12}
+                              color={mutedColor}
+                              mb={3}
+                            />
+                            <Text
+                              color={mutedColor}
+                              fontSize="lg"
+                              fontWeight="medium"
+                              mb={2}
+                            >
+                              No tasks in this project
+                            </Text>
+                            <Text color={mutedColor} fontSize="sm" mb={4}>
+                              Create your first task to get started
+                            </Text>
+                            <Button
+                              colorScheme="blue"
+                              leftIcon={<FiPlus />}
+                              onClick={handleNewTask}
+                            >
+                              Create Task
+                            </Button>
+                          </Box>
+                        )}
+                      </VStack>
+                    </TabPanel>
+
                     {/* Enhanced Analytics Tab */}
-                    <TabPanel px={6} py={8}>
+                    <TabPanel px={4} py={6}>
                       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
                         <Box
                           p={6}
@@ -1098,7 +1394,7 @@ export function ProjectDetail() {
                               <HStack
                                 w="full"
                                 justify="space-between"
-                                p={3}
+                                p={2}
                                 bg={cardBg}
                                 borderRadius="lg"
                               >
@@ -1124,7 +1420,7 @@ export function ProjectDetail() {
                               <HStack
                                 w="full"
                                 justify="space-between"
-                                p={3}
+                                p={2}
                                 bg={cardBg}
                                 borderRadius="lg"
                               >
@@ -1150,7 +1446,7 @@ export function ProjectDetail() {
                               <HStack
                                 w="full"
                                 justify="space-between"
-                                p={3}
+                                p={2}
                                 bg={cardBg}
                                 borderRadius="lg"
                               >
@@ -1201,7 +1497,7 @@ export function ProjectDetail() {
                               <HStack
                                 w="full"
                                 justify="space-between"
-                                p={3}
+                                p={2}
                                 bg={cardBg}
                                 borderRadius="lg"
                               >
@@ -1227,7 +1523,7 @@ export function ProjectDetail() {
                               <HStack
                                 w="full"
                                 justify="space-between"
-                                p={3}
+                                p={2}
                                 bg={cardBg}
                                 borderRadius="lg"
                               >
@@ -1253,7 +1549,7 @@ export function ProjectDetail() {
                               <HStack
                                 w="full"
                                 justify="space-between"
-                                p={3}
+                                p={2}
                                 bg={cardBg}
                                 borderRadius="lg"
                               >
@@ -1279,7 +1575,7 @@ export function ProjectDetail() {
                               <HStack
                                 w="full"
                                 justify="space-between"
-                                p={3}
+                                p={2}
                                 bg={cardBg}
                                 borderRadius="lg"
                               >
@@ -1322,8 +1618,8 @@ export function ProjectDetail() {
               _hover={{ shadow: "lg" }}
               transition="all 0.3s ease"
             >
-              <CardHeader pb={6}>
-                <Heading size="lg" color={textColor} fontWeight="bold">
+              <CardHeader pb={4}>
+                <Heading size="md" color={textColor} fontWeight="bold">
                   Quick Actions
                 </Heading>
                 <Text color={mutedColor} fontSize="sm">
@@ -1404,3 +1700,5 @@ export function ProjectDetail() {
     </>
   );
 }
+
+export default ProjectDetail;

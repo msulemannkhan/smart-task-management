@@ -110,9 +110,15 @@ class TaskRepository:
     
     async def update(self, task_id: uuid.UUID, update_data: Dict[str, Any], user_id: uuid.UUID) -> Task:
         """Update a single task"""
+        # Handle tags conversion
+        tags_data = update_data.pop("tags", None)
+        if tags_data is not None:
+            import json
+            update_data["tags_json"] = json.dumps(tags_data) if tags_data else None
+
         # Add updated_at timestamp
         update_data["updated_at"] = datetime.utcnow()
-        
+
         # Build and execute update statement with access control
         stmt = (
             update(Task)
@@ -241,7 +247,13 @@ class TaskRepository:
         Returns the number of rows updated.
         """
         start_time = time.time()
-        
+
+        # Handle tags conversion
+        tags_data = update_data.pop("tags", None)
+        if tags_data is not None:
+            import json
+            update_data["tags_json"] = json.dumps(tags_data) if tags_data else None
+
         # Add updated_at timestamp
         update_data["updated_at"] = datetime.utcnow()
         

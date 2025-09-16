@@ -45,6 +45,26 @@ export class ActivityService {
   ): Promise<ActivityListResponse> {
     return this.getRecentActivities(projectId, limit)
   }
+
+  static async getCategoryActivities(
+    categoryId: string,
+    limit: number = 20
+  ): Promise<ActivityListResponse> {
+    const params = new URLSearchParams()
+    params.append('category_id', categoryId)
+    params.append('limit', limit.toString())
+
+    const res = await api.get(`/activities/?${params.toString()}`)
+    return res.data
+  }
+
+  static async getUserActivities(
+    limit: number = 20,
+    offset: number = 0
+  ): Promise<Activity[]> {
+    const response = await this.getRecentActivities(undefined, limit, offset)
+    return response.activities
+  }
   
   static async clearActivities(): Promise<{ message: string; count: number }> {
     const response = await api.delete('/activities/')

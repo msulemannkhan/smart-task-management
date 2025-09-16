@@ -3,9 +3,13 @@ import api from "./api";
 export interface UserProfile {
   id: string;
   email: string;
+  username?: string;
   full_name?: string;
   bio?: string;
   avatar_url?: string;
+  department?: string;
+  location?: string;
+  website?: string;
   created_at: string;
   updated_at: string;
 }
@@ -13,6 +17,9 @@ export interface UserProfile {
 export interface UpdateProfileRequest {
   full_name?: string;
   bio?: string;
+  department?: string;
+  location?: string;
+  website?: string;
 }
 
 export interface UpdateSettingsRequest {
@@ -34,25 +41,25 @@ export interface UpdateSettingsRequest {
 }
 
 export class UserService {
-  static async updateProfile(token: string, data: UpdateProfileRequest): Promise<UserProfile> {
-    const response = await api.put("/users/profile", data, {
+  static async updateProfile(data: UpdateProfileRequest): Promise<UserProfile> {
+    const response = await api.put("/users/profile", data);
+    return response.data;
+  }
+
+  static async uploadAvatar(file: File): Promise<{ avatar_url: string }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await api.post("/users/avatar", formData, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        "Content-Type": "multipart/form-data",
       },
     });
     return response.data;
   }
 
-  static async uploadAvatar(token: string, file: File): Promise<{ avatar_url: string }> {
-    const formData = new FormData();
-    formData.append("file", file);
-    
-    const response = await api.post("/users/avatar", formData, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    });
+  static async getCurrentUser(): Promise<UserProfile> {
+    const response = await api.get("/users/me");
     return response.data;
   }
 

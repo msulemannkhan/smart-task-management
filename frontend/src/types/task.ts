@@ -69,6 +69,7 @@ export interface Task {
   category?: Category
   creator?: User
   assignee?: User
+  user?: User // Alias for creator for backward compatibility
   
   // Counts
   subtask_count: number

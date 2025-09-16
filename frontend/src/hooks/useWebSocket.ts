@@ -52,6 +52,13 @@ export function useWebSocket(config: WebSocketConfig = {}) {
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message: WebSocketMessage = JSON.parse(event.data);
+
+      // Validate message structure
+      if (!message || typeof message.type !== 'string') {
+        console.warn('Invalid WebSocket message format:', message);
+        return;
+      }
+
       setLastMessage(message);
 
       // Handle different message types
@@ -64,10 +71,32 @@ export function useWebSocket(config: WebSocketConfig = {}) {
           queryClient.invalidateQueries({ queryKey: ['recentTasks'] });
           queryClient.invalidateQueries({ queryKey: ['allTasks'] });
           queryClient.invalidateQueries({ queryKey: ['taskStats'] });
-          
+          queryClient.invalidateQueries({ queryKey: ['userActivities'] });
+
+          // Also invalidate project-specific data if project_id is provided
+          if (message.data?.project_id) {
+            queryClient.invalidateQueries({ queryKey: ['projectTasks', message.data.project_id] });
+            queryClient.invalidateQueries({ queryKey: ['projectActivities', message.data.project_id] });
+          }
+
           // Show notification for task changes by other users
           if (message.data?.user_id && message.data.user_id !== user?.id) {
-            toast.info(`Task ${message.type.replace('task_', '')}: ${message.data.title || 'A task has been modified'}`);
+            const action = message.type.replace('task_', '');
+            const userName = message.data?.user_name || 'Someone';
+            toast.info(`${userName} ${action} task: ${message.data.title || 'A task has been modified'}`);
+          }
+          break;
+
+        case 'task_comment_added':
+          // Invalidate task comments and show notification
+          if (message.data?.task_id) {
+            queryClient.invalidateQueries({ queryKey: ['taskComments', message.data.task_id] });
+          }
+
+          // Notify assigned user about new comments
+          if (message.data?.assignee_id === user?.id && message.data?.user_id !== user?.id) {
+            const userName = message.data?.user_name || 'Someone';
+            toast.info(`💬 ${userName} commented on your task: ${message.data.task_title}`);
           }
           break;
 
@@ -76,25 +105,71 @@ export function useWebSocket(config: WebSocketConfig = {}) {
         case 'project_deleted':
           // Invalidate project queries
           queryClient.invalidateQueries({ queryKey: ['projects'] });
+
+          // Show notification for project changes
+          if (message.data?.user_id && message.data.user_id !== user?.id) {
+            const action = message.type.replace('project_', '');
+            const userName = message.data?.user_name || 'Someone';
+            toast.info(`${userName} ${action} project: ${message.data.name || 'A project'}`);
+          }
+          break;
+
+        case 'project_member_added':
+        case 'project_member_removed':
+          // Invalidate project members
+          if (message.data?.project_id) {
+            queryClient.invalidateQueries({ queryKey: ['projectMembers', message.data.project_id] });
+          }
+
+          // Show notification if current user is affected
+          if (message.data?.user_id === user?.id) {
+            const action = message.type === 'project_member_added' ? 'added to' : 'removed from';
+            toast.info(`You were ${action} project: ${message.data.project_name}`);
+          }
+          break;
+
+        case 'user_online':
+        case 'user_offline':
+          // Handle user presence updates
+          queryClient.invalidateQueries({ queryKey: ['onlineUsers'] });
           break;
 
         case 'activity_created':
           // Invalidate activity queries
           queryClient.invalidateQueries({ queryKey: ['userActivities'] });
+          queryClient.invalidateQueries({ queryKey: ['recentActivities'] });
+
+          // Invalidate project activities if project_id is provided
+          if (message.data?.project_id) {
+            queryClient.invalidateQueries({ queryKey: ['projectActivities', message.data.project_id] });
+          }
           break;
 
         case 'task_assigned':
           // Show notification when task is assigned to user
           if (message.data?.assignee_id === user?.id) {
-            toast.warning(`New Task Assigned: You have been assigned: ${message.data.title}`);
+            const userName = message.data?.user_name || 'Someone';
+            toast.warning(`📋 New Task Assigned: ${userName} assigned you: ${message.data.title}`);
           }
+
+          // Invalidate task queries
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['userTasks'] });
           break;
 
         case 'task_completed':
           // Celebrate task completion
           if (message.data?.user_id === user?.id) {
-            toast.success(`Task Completed! 🎉 ${message.data.title}`);
+            toast.success(`🎉 Task Completed: ${message.data.title}`);
+          } else {
+            // Show notification when team member completes a task
+            const userName = message.data?.user_name || 'Someone';
+            toast.success(`✅ ${userName} completed: ${message.data.title}`);
           }
+
+          // Invalidate relevant queries
+          queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['taskStats'] });
           break;
 
         case 'pong':
@@ -103,10 +178,11 @@ export function useWebSocket(config: WebSocketConfig = {}) {
           break;
 
         default:
-          console.log('Unknown WebSocket message type:', message.type);
+          console.warn('Unknown WebSocket message type:', message.type, 'Full message:', message);
       }
     } catch (error) {
       console.error('Error parsing WebSocket message:', error);
+      console.error('Raw message data:', event.data);
     }
   }, [queryClient, toast, user]);
 

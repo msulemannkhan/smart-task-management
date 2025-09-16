@@ -234,7 +234,7 @@ class TaskResponse(BaseModel):
             "assignee_id": task.assignee_id,
             "parent_task_id": task.parent_task_id,
             "position": task.position,
-            "tags": task.tags if hasattr(task, 'tags') else [],
+            "tags": task.get_tags() if hasattr(task, 'get_tags') else [],
             "version": task.version,
         }
         

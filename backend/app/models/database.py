@@ -374,8 +374,7 @@ class Task(TaskBase, table=True):
     # watchers: List["TaskWatcher"] # = Relationship(back_populates="task")
     # time_entries: List["TimeEntry"] # = Relationship(back_populates="task")
     
-    @property
-    def tags(self) -> List[str]:
+    def get_tags(self) -> List[str]:
         """Convert tags JSON string to list"""
         if not self.tags_json:
             return []
@@ -384,9 +383,8 @@ class Task(TaskBase, table=True):
             return json.loads(self.tags_json)
         except:
             return []
-    
-    @tags.setter
-    def tags(self, value: List[str]):
+
+    def set_tags(self, value: List[str]):
         """Convert tags list to JSON string"""
         import json
         self.tags_json = json.dumps(value) if value else None

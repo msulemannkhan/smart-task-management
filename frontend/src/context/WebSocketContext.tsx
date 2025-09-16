@@ -18,6 +18,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     autoReconnect: true,
     reconnectInterval: 3000,
     maxReconnectAttempts: 5,
+    initialDelay: 5000, // 5 second delay to prevent immediate connection errors
   });
 
   const contextValue: WebSocketContextValue = {

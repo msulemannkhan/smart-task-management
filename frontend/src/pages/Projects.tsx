@@ -27,10 +27,28 @@ import {
   Tr,
   Th,
   Td,
-  Avatar,
   AvatarGroup,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  InputRightElement,
+  Select,
+  Stat,
+  StatLabel,
+  StatNumber,
+  StatHelpText,
+  useToast,
+  AlertDialog,
+  AlertDialogBody,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogContent,
+  AlertDialogOverlay,
+  useDisclosure,
+  Skeleton,
+  SkeletonText,
 } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   FiPlus,
   FiUsers,
@@ -42,6 +60,13 @@ import {
   FiCheckCircle,
   FiGrid,
   FiList,
+  FiSearch,
+  FiFilter,
+  FiX,
+  FiRefreshCw,
+  FiStar,
+  FiActivity,
+  FiTrendingUp,
 } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import {
@@ -56,14 +81,25 @@ import { UserAvatar } from "../components/common/UserAvatar";
 
 export function Projects() {
   const navigate = useNavigate();
+  const toast = useToast();
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onClose: onDeleteClose,
+  } = useDisclosure();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
   const cardBg = useColorModeValue("white", "dark.bg.tertiary");
   const textMuted = useColorModeValue("gray.600", "gray.400");
   const borderColor = useColorModeValue("gray.200", "gray.600");
   const progressBg = useColorModeValue("gray.100", "gray.700");
   const tableBg = useColorModeValue("white", "dark.bg.tertiary");
   const hoverBg = useColorModeValue("gray.50", "dark.bg.hover");
+  const bgColor = useColorModeValue("gray.50", "dark.bg.primary");
+  const accentColor = useColorModeValue("blue.500", "blue.400");
 
   const [projects, setProjects] = useState<ProjectListResponse["projects"]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<ProjectListResponse["projects"]>([]);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [projectMembers, setProjectMembers] = useState<Record<string, any[]>>({});
   const [taskCounts, setTaskCounts] = useState<
@@ -82,85 +118,72 @@ export function Projects() {
     status: string;
     color: string;
   } | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await ProjectService.list();
-        // Remove duplicates first
-        const uniqueProjects = res.projects.filter(
-          (project, index, self) =>
-            index === self.findIndex((p) => p.id === project.id)
-        );
-        setProjects(uniqueProjects);
-
-        // Fetch member counts and task stats per project
-        const memberEntries: [string, number][] = [];
-        const memberDetailsEntries: [string, any[]][] = [];
-        const taskEntries: [string, { total: number; completed: number }][] =
-          [];
-
-        for (const p of uniqueProjects) {
-          // Get members with details
-          try {
-            const m = await ProjectMemberService.list(p.id);
-            // Filter out duplicate members based on user_id
-            const uniqueMembers = m.members?.filter((member, index, self) =>
-              index === self.findIndex((m) => m.user_id === member.user_id)
-            ) || [];
-            memberEntries.push([p.id, uniqueMembers.length]);
-            memberDetailsEntries.push([p.id, uniqueMembers]);
-          } catch {
-            memberEntries.push([p.id, 1]); // At least owner
-            memberDetailsEntries.push([p.id, []]);
-          }
-
-          // Get task stats
-          try {
-            const stats = await TaskService.getTaskStats(p.id);
-            taskEntries.push([
-              p.id,
-              { total: stats.total, completed: stats.completed },
-            ]);
-          } catch {
-            taskEntries.push([p.id, { total: 0, completed: 0 }]);
-          }
-        }
-
-        setMemberCounts(Object.fromEntries(memberEntries));
-        setProjectMembers(Object.fromEntries(memberDetailsEntries));
-        setTaskCounts(Object.fromEntries(taskEntries));
-      } finally {
-        setIsLoading(false);
-      }
-    })();
+    loadProjects();
   }, []);
 
-  const loadProjects = async () => {
-    try {
-      const res = await ProjectService.list();
-      setProjects(res.projects);
+  // Filter projects based on search and status
+  useEffect(() => {
+    let filtered = projects;
 
-      // Reload member counts and task stats
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filtered.filter((project) =>
+        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        project.description?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((project) => project.status === statusFilter);
+    }
+
+    setFilteredProjects(filtered);
+  }, [projects, searchQuery, statusFilter]);
+
+  const loadProjects = async (showToast = false) => {
+    try {
+      if (showToast) setIsRefreshing(true);
+      if (!showToast) setIsLoading(true);
+
+      const res = await ProjectService.list();
+      // Remove duplicates first
+      const uniqueProjects = res.projects.filter(
+        (project, index, self) =>
+          index === self.findIndex((p) => p.id === project.id)
+      );
+      setProjects(uniqueProjects);
+
+      // Fetch member counts and task stats per project in parallel
       const memberEntries: [string, number][] = [];
       const memberDetailsEntries: [string, any[]][] = [];
       const taskEntries: [string, { total: number; completed: number }][] = [];
 
-      for (const p of res.projects) {
+      await Promise.all(uniqueProjects.map(async (p) => {
+        // Get members with details
         try {
           const m = await ProjectMemberService.list(p.id);
-          // Filter out duplicate members based on user_id
           const uniqueMembers = m.members?.filter((member, index, self) =>
             index === self.findIndex((m) => m.user_id === member.user_id)
           ) || [];
           memberEntries.push([p.id, uniqueMembers.length]);
           memberDetailsEntries.push([p.id, uniqueMembers]);
         } catch {
-          memberEntries.push([p.id, 1]);
+          memberEntries.push([p.id, 1]); // At least owner
           memberDetailsEntries.push([p.id, []]);
         }
 
+        // Get task stats
         try {
           const stats = await TaskService.getTaskStats(p.id);
           taskEntries.push([
@@ -170,18 +193,77 @@ export function Projects() {
         } catch {
           taskEntries.push([p.id, { total: 0, completed: 0 }]);
         }
-      }
+      }));
 
       setMemberCounts(Object.fromEntries(memberEntries));
       setProjectMembers(Object.fromEntries(memberDetailsEntries));
       setTaskCounts(Object.fromEntries(taskEntries));
-    } catch (error) {
+
+      if (showToast) {
+        toast({
+          title: "Projects refreshed",
+          status: "success",
+          duration: 2000,
+          isClosable: true,
+        });
+      }
+    } catch (error: any) {
       console.error("Failed to load projects:", error);
+      toast({
+        title: "Failed to load projects",
+        description: error?.message || "An error occurred",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   const handleProjectSuccess = () => {
-    loadProjects();
+    loadProjects(true);
+  };
+
+  const handleRefresh = () => {
+    loadProjects(true);
+  };
+
+  const handleDeleteProject = (project: any) => {
+    setProjectToDelete({ id: project.id, name: project.name });
+    onDeleteOpen();
+  };
+
+  const confirmDeleteProject = async () => {
+    if (!projectToDelete) return;
+
+    try {
+      await ProjectService.delete(projectToDelete.id);
+      toast({
+        title: "Project deleted",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      loadProjects();
+    } catch (error: any) {
+      toast({
+        title: "Failed to delete project",
+        description: error?.response?.data?.detail || "An error occurred",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      onDeleteClose();
+      setProjectToDelete(null);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
   };
 
   const handleEditProject = (project: any) => {
@@ -293,10 +375,11 @@ export function Projects() {
               return (
                 <Card
                   key={project.id}
-                  // bg={cardBg}
+                  bg={cardBg}
                   borderRadius="xl"
-                  border="none"
-                  // boxShadow="sm"
+                  border="1px solid"
+                  borderColor={borderColor}
+                  boxShadow="sm"
                   overflow="hidden"
                   position="relative"
                   transition="all 0.2s"
@@ -307,7 +390,7 @@ export function Projects() {
                   onClick={() => navigate(`/projects/${project.id}`)}
                 >
                   {/* Color bar at top */}
-                  {/* <Box h="4px" bg={project.color} /> */}
+                  <Box h="4px" bg={project.color || "gray.400"} />
 
                   <CardBody p={5}>
                     <VStack align="stretch" spacing={4}>

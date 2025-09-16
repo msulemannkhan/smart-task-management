@@ -28,7 +28,7 @@ export function ForgotPassword() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
-  
+
   const cardBg = useColorModeValue("white", "gray.800");
   const textMuted = useColorModeValue("gray.600", "gray.400");
 
@@ -38,13 +38,18 @@ export function ForgotPassword() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:9200'}/api/v1/auth/forgot-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:9200"
+        }/api/v1/auth/forgot-password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
 
       const data = await response.json();
 
@@ -85,7 +90,7 @@ export function ForgotPassword() {
                   inbox and follow the instructions to reset your password.
                 </AlertDescription>
               </Alert>
-              
+
               <Button
                 variant="ghost"
                 leftIcon={<FiArrowLeft />}

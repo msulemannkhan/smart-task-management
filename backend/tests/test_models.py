@@ -188,7 +188,6 @@ class TestTaskModel:
             estimated_hours=8.5,
             actual_hours=2.0,
             completed_percentage=25,
-            tags=["urgent", "feature", "frontend"],
             position=1.5,
             custom_fields={
                 "client": "ACME Corp",
@@ -196,6 +195,8 @@ class TestTaskModel:
                 "complexity": "high"
             }
         )
+        # Set tags using the new method
+        task.set_tags(["urgent", "feature", "frontend"])
         
         test_session.add(task)
         await test_session.commit()
@@ -206,7 +207,7 @@ class TestTaskModel:
         assert task.priority == TaskPriority.HIGH
         assert task.estimated_hours == 8.5
         assert task.completed_percentage == 25
-        assert "urgent" in task.tags
+        assert "urgent" in task.get_tags()
         assert task.custom_fields["client"] == "ACME Corp"
         assert task.position == 1.5
     

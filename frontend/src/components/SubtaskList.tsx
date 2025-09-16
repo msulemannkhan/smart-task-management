@@ -15,7 +15,15 @@ import {
   Flex,
 } from "@chakra-ui/react";
 import { useState, useEffect } from "react";
-import { FiPlus, FiTrash2, FiEdit2, FiCheck, FiX, FiChevronDown, FiChevronRight } from "react-icons/fi";
+import {
+  FiPlus,
+  FiTrash2,
+  FiEdit2,
+  FiCheck,
+  FiX,
+  FiChevronDown,
+  FiChevronRight,
+} from "react-icons/fi";
 import { TaskService } from "../services/taskService";
 
 interface Subtask {
@@ -33,7 +41,11 @@ interface SubtaskListProps {
   isEditable?: boolean;
 }
 
-export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: SubtaskListProps) {
+export function SubtaskList({
+  taskId,
+  onProgressUpdate,
+  isEditable = true,
+}: SubtaskListProps) {
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
@@ -43,24 +55,32 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
   const [isExpanded, setIsExpanded] = useState(true);
   const toast = useToast();
 
-  const bgColor = useColorModeValue("gray.50", "gray.800");
-  const borderColor = useColorModeValue("gray.200", "gray.600");
-  const completedTextColor = useColorModeValue("gray.500", "gray.600");
+  const bgColor = useColorModeValue("gray.50", "dark.bg.secondary");
+  const borderColor = useColorModeValue("gray.200", "dark.border.subtle");
+  const completedTextColor = useColorModeValue("gray.500", "gray.400");
 
   // Calculate progress
-  const progress = subtasks.length > 0 
-    ? Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100)
-    : 0;
+  const progress =
+    subtasks.length > 0
+      ? Math.round(
+          (subtasks.filter((s) => s.completed).length / subtasks.length) * 100
+        )
+      : 0;
 
   // Fetch subtasks
   const fetchSubtasks = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:9200'}/api/v1/tasks/${taskId}/subtasks`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:9200"
+        }/api/v1/tasks/${taskId}/subtasks`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -79,21 +99,26 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
 
     try {
       setIsAddingSubtask(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:9200'}/api/v1/tasks/${taskId}/subtasks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        body: JSON.stringify({
-          title: newSubtaskTitle,
-          parent_task_id: taskId,
-        }),
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:9200"
+        }/api/v1/tasks/${taskId}/subtasks`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+          body: JSON.stringify({
+            title: newSubtaskTitle,
+            parent_task_id: taskId,
+          }),
+        }
+      );
 
       if (response.ok) {
         const newSubtask = await response.json();
-        setSubtasks(prev => [...prev, newSubtask]);
+        setSubtasks((prev) => [...prev, newSubtask]);
         setNewSubtaskTitle("");
         toast({
           title: "Subtask added",
@@ -116,34 +141,45 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
   const handleToggleComplete = async (subtask: Subtask) => {
     try {
       const newCompleted = !subtask.completed;
-      
-      // Optimistic update
-      setSubtasks(prev => prev.map(s => 
-        s.id === subtask.id ? { ...s, completed: newCompleted } : s
-      ));
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL || 'http://localhost:9200'}'}/api/v1/tasks/subtasks/${subtask.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        body: JSON.stringify({
-          completed: newCompleted,
-        }),
-      });
+      // Optimistic update
+      setSubtasks((prev) =>
+        prev.map((s) =>
+          s.id === subtask.id ? { ...s, completed: newCompleted } : s
+        )
+      );
+
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:9200"
+        }/api/v1/tasks/subtasks/${subtask.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+          body: JSON.stringify({
+            completed: newCompleted,
+          }),
+        }
+      );
 
       if (!response.ok) {
         // Revert on error
-        setSubtasks(prev => prev.map(s => 
-          s.id === subtask.id ? { ...s, completed: !newCompleted } : s
-        ));
+        setSubtasks((prev) =>
+          prev.map((s) =>
+            s.id === subtask.id ? { ...s, completed: !newCompleted } : s
+          )
+        );
         throw new Error("Failed to update subtask");
       }
 
-      const updatedProgress = calculateProgress(subtasks.map(s => 
-        s.id === subtask.id ? { ...s, completed: newCompleted } : s
-      ));
+      const updatedProgress = calculateProgress(
+        subtasks.map((s) =>
+          s.id === subtask.id ? { ...s, completed: newCompleted } : s
+        )
+      );
       onProgressUpdate?.(updatedProgress);
     } catch (error) {
       toast({
@@ -162,21 +198,28 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:9200'}/api/v1/tasks/subtasks/${subtaskId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-        body: JSON.stringify({
-          title: editingTitle,
-        }),
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:9200"
+        }/api/v1/tasks/subtasks/${subtaskId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+          body: JSON.stringify({
+            title: editingTitle,
+          }),
+        }
+      );
 
       if (response.ok) {
-        setSubtasks(prev => prev.map(s => 
-          s.id === subtaskId ? { ...s, title: editingTitle } : s
-        ));
+        setSubtasks((prev) =>
+          prev.map((s) =>
+            s.id === subtaskId ? { ...s, title: editingTitle } : s
+          )
+        );
         setEditingId(null);
         toast({
           title: "Subtask updated",
@@ -196,15 +239,20 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
   // Delete subtask
   const handleDeleteSubtask = async (subtaskId: string) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:9200'}/api/v1/tasks/subtasks/${subtaskId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
-      });
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_URL || "http://localhost:9200"
+        }/api/v1/tasks/subtasks/${subtaskId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+        }
+      );
 
       if (response.ok) {
-        const newSubtasks = subtasks.filter(s => s.id !== subtaskId);
+        const newSubtasks = subtasks.filter((s) => s.id !== subtaskId);
         setSubtasks(newSubtasks);
         onProgressUpdate?.(calculateProgress(newSubtasks));
         toast({
@@ -223,8 +271,10 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
   };
 
   const calculateProgress = (tasks: Subtask[]) => {
-    return tasks.length > 0 
-      ? Math.round((tasks.filter(s => s.completed).length / tasks.length) * 100)
+    return tasks.length > 0
+      ? Math.round(
+          (tasks.filter((s) => s.completed).length / tasks.length) * 100
+        )
       : 0;
   };
 
@@ -266,7 +316,7 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
           {subtasks.length > 0 && (
             <>
               <Badge colorScheme="gray" fontSize="xs">
-                {subtasks.filter(s => s.completed).length}/{subtasks.length}
+                {subtasks.filter((s) => s.completed).length}/{subtasks.length}
               </Badge>
               <Text fontSize="xs" color="gray.500">
                 {progress}%
@@ -278,9 +328,9 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
 
       {/* Progress Bar */}
       {subtasks.length > 0 && (
-        <Progress 
-          value={progress} 
-          size="xs" 
+        <Progress
+          value={progress}
+          size="xs"
           colorScheme={progress === 100 ? "green" : "blue"}
           borderRadius="full"
         />
@@ -289,22 +339,22 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
       <Collapse in={isExpanded} animateOpacity>
         <VStack align="stretch" spacing={2}>
           {/* Subtask List */}
-          {subtasks.map(subtask => (
-            <HStack 
-              key={subtask.id} 
-              p={2} 
-              bg={bgColor} 
+          {subtasks.map((subtask) => (
+            <HStack
+              key={subtask.id}
+              p={2}
+              bg={bgColor}
               borderRadius="md"
               border="1px"
               borderColor={borderColor}
-              _hover={{ bg: useColorModeValue("gray.100", "gray.700") }}
+              _hover={{ bg: useColorModeValue("gray.100", "dark.bg.hover") }}
             >
               <Checkbox
                 isChecked={subtask.completed}
                 onChange={() => handleToggleComplete(subtask)}
                 isDisabled={!isEditable}
               />
-              
+
               {editingId === subtask.id ? (
                 <Input
                   value={editingTitle}
@@ -312,8 +362,8 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
                   size="sm"
                   autoFocus
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') handleUpdateTitle(subtask.id);
-                    if (e.key === 'Escape') cancelEditing();
+                    if (e.key === "Enter") handleUpdateTitle(subtask.id);
+                    if (e.key === "Escape") cancelEditing();
                   }}
                 />
               ) : (
@@ -382,7 +432,7 @@ export function SubtaskList({ taskId, onProgressUpdate, isEditable = true }: Sub
                 onChange={(e) => setNewSubtaskTitle(e.target.value)}
                 size="sm"
                 onKeyPress={(e) => {
-                  if (e.key === 'Enter') handleAddSubtask();
+                  if (e.key === "Enter") handleAddSubtask();
                 }}
               />
               <Button

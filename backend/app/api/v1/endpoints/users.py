@@ -16,6 +16,13 @@ from app.core.database import get_session
 from app.core.auth import CurrentUser
 from app.models.database import User, Project, ProjectMember
 from app.schemas.user import PublicUser, UserListResponse
+from app.schemas.user_settings import (
+    UpdateUserSettingsRequest,
+    UserSettingsResponse,
+    NotificationSettings,
+    UISettings,
+    PrivacySettings
+)
 
 router = APIRouter()
 
@@ -181,6 +188,84 @@ async def update_profile(
     )
     
     return map_user(current_user)
+
+
+@router.get("/settings", response_model=UserSettingsResponse)
+async def get_user_settings(
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Get current user's settings and preferences.
+    """
+    import json
+
+    # Parse JSON settings
+    notification_prefs = json.loads(current_user.notification_preferences or '{}')
+    ui_prefs = json.loads(current_user.ui_preferences or '{}')
+
+    # Extract privacy settings from ui_preferences
+    privacy_settings = ui_prefs.get('privacy', {})
+
+    return UserSettingsResponse(
+        notification_settings=NotificationSettings(**notification_prefs),
+        ui_settings=UISettings(**{k: v for k, v in ui_prefs.items() if k != 'privacy'}),
+        privacy_settings=PrivacySettings(**privacy_settings),
+        updated_at=current_user.updated_at
+    )
+
+
+@router.put("/settings", response_model=UserSettingsResponse)
+async def update_user_settings(
+    request: UpdateUserSettingsRequest,
+    current_user: User = CurrentUser,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Update current user's settings and preferences.
+    """
+    import json
+    from datetime import datetime
+
+    # Update notification preferences
+    if request.notification_settings:
+        current_prefs = json.loads(current_user.notification_preferences or '{}')
+        current_prefs.update(request.notification_settings.dict())
+        current_user.notification_preferences = json.dumps(current_prefs)
+
+    # Update UI preferences
+    if request.ui_settings or request.privacy_settings:
+        current_ui = json.loads(current_user.ui_preferences or '{}')
+
+        if request.ui_settings:
+            current_ui.update(request.ui_settings.dict())
+
+        if request.privacy_settings:
+            current_ui['privacy'] = request.privacy_settings.dict()
+
+        current_user.ui_preferences = json.dumps(current_ui)
+
+    # Update timestamps
+    current_user.updated_at = datetime.utcnow()
+
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+
+    # Log activity
+    from app.repositories.activity_repository import ActivityRepository
+    from app.models.database import ActivityActionType
+    activity_repo = ActivityRepository(session)
+    await activity_repo.create(
+        user_id=current_user.id,
+        action_type=ActivityActionType.USER_PROFILE_UPDATED,
+        entity_type="user",
+        entity_id=current_user.id,
+        entity_name=current_user.full_name or current_user.email,
+        description="Updated settings and preferences"
+    )
+
+    return await get_user_settings(current_user, session)
 
 
 # Note: Password change is handled through Supabase auth, not directly in our API

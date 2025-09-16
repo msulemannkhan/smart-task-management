@@ -119,7 +119,10 @@ engine = create_async_engine(
     pool_pre_ping=True,  # Verify connections before using
     pool_recycle=3600,  # Recycle connections after 1 hour
     pool_timeout=30,  # Timeout for getting connection from pool
-    connect_args=connect_args
+    connect_args=connect_args,
+    # Add these to prevent bulk operation issues
+    isolation_level="READ_COMMITTED",
+    query_cache_size=1200
 )
 
 # Create async session factory

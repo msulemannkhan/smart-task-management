@@ -43,6 +43,8 @@ services:
       - BACKEND_CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8086,http://127.0.0.1:8086,http://localhost:5173,http://localhost:5174}
     ports:
       - "${BACKEND_PORT:-9200}:${BACKEND_CONTAINER_PORT:-8000}"
+    volumes:
+      - uploaded_files:/app/uploads
     depends_on:
       database:
         condition: service_healthy
@@ -79,6 +81,9 @@ volumes:
   postgres_backups:
     driver: local
     name: stm_postgres_backups
+  uploaded_files:
+    driver: local
+    name: stm_uploaded_files
 
 networks:
   stm-network:
